@@ -8,6 +8,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const path = require("path");
+app.use(express.static(path.join(__dirname, "../esp32-frontend")));
 //db
 mongoose.connect(
   process.env.MONGO_URI
@@ -61,6 +63,10 @@ app.get("/data/recent", async (req, res) => {
 app.use("/api", require("./routes/dashboard"));
 
 const PORT = process.env.PORT || 3000;
+
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "../esp32-frontend/index.html"));
+});
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
