@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -9,7 +10,7 @@ app.use(express.json());
 
 //db
 mongoose.connect(
-  "mongodb+srv://sxmnath:r!chPaint_49@healthmonitor.dgpi3th.mongodb.net/?appName=HealthMonitor"
+  process.env.MONGO_URI
 )
 .then(() => console.log("MongoDB Connected"))
 .catch(err => console.log(err));
@@ -59,6 +60,8 @@ app.get("/data/recent", async (req, res) => {
 
 app.use("/api", require("./routes/dashboard"));
 
-app.listen(3000, () => {
-  console.log("Server running on port 3000");
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });

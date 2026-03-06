@@ -8,7 +8,7 @@
 /* --- WIFI --check this block everytiume, need to match ipv4- */
 const char* ssid = "jump-68";
 const char* password = "12345678";
-String serverURL = "http://10.117.245.71:3000/data"; 
+String serverURL = "http://10.119.198.71:3000/data"; 
 
 /* -------------------- OBJECTS -------------------- */
 MAX30105 particleSensor;
