@@ -4,50 +4,95 @@
   <meta charset="UTF-8" />
   <title>Health Monitor Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-  <div class="container">
+  <!-- Dynamic Live Background -->
+  <div class="bg-blob blob-1"></div>
+  <div class="bg-blob blob-2"></div>
+
+  <div class="container glass-panel">
 
     <!-- Header -->
     <header class="header">
-      <h1 id="patientName">Health Monitor</h1>
-      <span class="subtitle">Real-time Health Intelligence</span>
+      <div class="header-content">
+        <h1 id="patientName">Health Monitor</h1>
+        <span class="subtitle">Real-time Health Intelligence</span>
+      </div>
+      <div class="pulse-indicator">
+        <span class="dot"></span>
+        <span class="status-text">Live</span>
+      </div>
     </header>
 
     <!-- Overall Status -->
     <section id="statusCard" class="card status-card">
-      Loading status...
+      <div class="status-icon"><i class="fa-solid fa-heart-pulse"></i></div>
+      <div class="status-info">
+        <h3>Current Status</h3>
+        <p id="status-label">Loading...</p>
+      </div>
     </section>
 
     <!-- Vitals -->
     <section class="vitals-grid">
-      <div class="card vital-card">
-        <span class="label"> Heart Rate</span>
-        <span id="hr" class="value">-- bpm</span>
+      <div class="card vital-card interactive" id="card-hr">
+        <div class="vital-header">
+          <i class="fa-solid fa-heart-pulse icon-hr"></i>
+          <span class="label">Heart Rate</span>
+        </div>
+        <div class="vital-body">
+          <span id="hr" class="value">--</span><span class="unit"> bpm</span>
+        </div>
+        <div class="progress-bar-container">
+          <div class="progress-bar" id="bar-hr"></div>
+        </div>
       </div>
-      <div class="card vital-card">
-        <span class="label"> SpO₂</span>
-        <span id="spo2" class="value">-- %</span>
+      <div class="card vital-card interactive" id="card-spo2">
+        <div class="vital-header">
+          <i class="fa-solid fa-lungs icon-spo2"></i>
+          <span class="label">SpO₂</span>
+        </div>
+        <div class="vital-body">
+          <span id="spo2" class="value">--</span><span class="unit"> %</span>
+        </div>
+        <div class="progress-bar-container">
+          <div class="progress-bar" id="bar-spo2"></div>
+        </div>
       </div>
-      <div class="card vital-card">
-        <span class="label"> Temperature</span>
-        <span id="temp" class="value">-- °C</span>
+      <div class="card vital-card interactive" id="card-temp">
+        <div class="vital-header">
+          <i class="fa-solid fa-temperature-half icon-temp"></i>
+          <span class="label">Temperature</span>
+        </div>
+        <div class="vital-body">
+          <span id="temp" class="value">--</span><span class="unit"> °C</span>
+        </div>
+        <div class="progress-bar-container">
+          <div class="progress-bar" id="bar-temp"></div>
+        </div>
       </div>
     </section>
 
-    <!-- Sensor Fusion -->
+    <!-- Sensor Fusion Data -->
     <section class="fusion-section">
-      <h2>Health Insights</h2>
+      <h2 class="section-title"><i class="fa-solid fa-brain"></i> AI Health Insights</h2>
       <div id="fusion" class="fusion-cards">
-        <!-- dynamic -->
+        <div class="card empty-state">Fetching real-time insights...</div>
       </div>
     </section>
 
     <!-- Footer -->
     <footer class="footer">
-      <span id="updated">Last updated: --</span>
+      <div class="footer-info">
+        <i class="fa-regular fa-clock"></i>
+        <span id="updated">Last updated: --</span>
+      </div>
     </footer>
 
   </div>
