@@ -2,11 +2,11 @@
 
 > Real-time health telemetry pipeline — ESP32 → Node.js REST API → MongoDB Atlas → Live Web Dashboard
 
-🔗 **Live Dashboard:** [health-monitor-server-2pbh.onrender.com]
+**Live Dashboard:** [your-app.onrender.com](https://health-monitor-server-2pbh.onrender.com)
 
 ---
 
-## 📸 Screenshots
+## Screenshots
 
 ### Serial Monitor (Live ESP32 Output)
 ![Serial Monitor](assets/serial_monitor.png)
@@ -16,7 +16,7 @@
 
 ---
 
-## 🔄 Data Flow
+## Data Flow
 ```
 ESP32 (C++) ──── HTTP POST /api/data ───► Node.js (Express)
                                                │
@@ -30,7 +30,7 @@ ESP32 (C++) ──── HTTP POST /api/data ───► Node.js (Express)
 
 ---
 
-## 🧰 Hardware
+## Hardware
 
 | Component        | Model / Spec              | Role                         |
 |------------------|---------------------------|------------------------------|
@@ -41,7 +41,7 @@ ESP32 (C++) ──── HTTP POST /api/data ───► Node.js (Express)
 
 ---
 
-## 🗂 Project Structure
+## Project Structure
 ```
 healthMonitor/
 ├── esp32-backend/       # Node.js + Express REST API + MongoDB connection
@@ -52,7 +52,7 @@ healthMonitor/
 
 ---
 
-## 🚀 Running Locally
+## Running Locally
 
 ### 1. Backend (Node.js)
 ```bash
@@ -73,14 +73,14 @@ Navigate to `http://localhost:3000` — data updates in real time as the ESP32 P
 
 ---
 
-## ☁️ Deployment
+## Deployment
 
 Backend and frontend are both deployed on **Render** as a single Node.js web service.  
 MongoDB is hosted on **MongoDB Atlas** (free tier).
 
 ---
 
-## 🛠 Tech Stack
+## Tech Stack
 
 | Layer       | Technology                     |
 |-------------|--------------------------------|
@@ -92,7 +92,7 @@ MongoDB is hosted on **MongoDB Atlas** (free tier).
 
 ---
 
-## 📄 License
+## License
 
 MIT
 ```
