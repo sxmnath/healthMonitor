@@ -6,9 +6,6 @@
 #include <Adafruit_TMP117.h>
 #include <WiFiManager.h>
 
-/* --- WIFI --check this block everytiume, need to match ipv4- */
-//const char* ssid = "soumil123";
-//const char* password = "soumil123";
 String serverURL = "https://health-monitor-server-2pbh.onrender.com/data"; 
 
 /* -------------------- OBJECTS -------------------- */
@@ -38,13 +35,7 @@ void setup() {
   delay(1000);
 
   /* ---------- WIFI ---------- */
-  /*WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
 
-  Serial.println("\n WiFi Connected");*/
 WiFiManager wm;
 
 bool res = wm.autoConnect("HealthMonitor-Setup");
