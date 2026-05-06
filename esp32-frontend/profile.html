@@ -298,8 +298,6 @@
     }
     @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
   </style>
-
-  <style>#adminNavLink{display:none}</style>
 </head>
 <body>
 <div class="app-layout">
@@ -322,6 +320,11 @@
       <a href="/profile" class="nav-item active" title="My Profile">
         <i class="fa-solid fa-circle-user"></i>
         <span>My Profile</span>
+      </a>
+      <a href="/admin" class="nav-item" id="adminNavLink"
+         style="display:none" title="Admin Panel">
+        <i class="fa-solid fa-shield-halved"></i>
+        <span>Admin Panel</span>
       </a>
     </nav>
     <div class="sidebar-bottom">
@@ -918,16 +921,14 @@
 </script>
 
   <script>
-    // Show Admin Panel sidebar link only for admins — purely cosmetic
-    // The admin page enforces role server-side
     (function() {
       try {
-        var token = localStorage.getItem("hm_token");
-        if (!token) return;
-        var payload = JSON.parse(atob(token.split(".")[1].replace(/-/g,"+").replace(/_/g,"/")));
-        if (payload.role === "admin") {
-          var link = document.getElementById("adminNavLink");
-          if (link) link.style.display = "flex";
+        var t = localStorage.getItem("hm_token");
+        if (!t) return;
+        var p = JSON.parse(atob(t.split(".")[1].replace(/-/g,"+").replace(/_/g,"/")));
+        if (p.role === "admin") {
+          var el = document.getElementById("adminNavLink");
+          if (el) el.style.display = "";
         }
       } catch(_) {}
     })();

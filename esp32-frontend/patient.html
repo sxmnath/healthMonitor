@@ -12,8 +12,6 @@
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="/socket.io/socket.io.js"></script>
-
-  <style>#adminNavLink{display:none}</style>
 </head>
 <body>
   <div class="app-layout">
@@ -36,6 +34,15 @@
         <a href="#" class="nav-item active" title="Patient">
           <i class="fa-solid fa-user-injured"></i>
           <span>Patient</span>
+        </a>
+        <a href="/profile" class="nav-item" title="My Profile">
+          <i class="fa-solid fa-circle-user"></i>
+          <span>My Profile</span>
+        </a>
+        <a href="/admin" class="nav-item" id="adminNavLink"
+           style="display:none" title="Admin Panel">
+          <i class="fa-solid fa-shield-halved"></i>
+          <span>Admin Panel</span>
         </a>
       </nav>
       <div class="sidebar-bottom">
@@ -370,16 +377,14 @@
   <script src="app.js"></script>
 
   <script>
-    // Show Admin Panel sidebar link only for admins — purely cosmetic
-    // The admin page enforces role server-side
     (function() {
       try {
-        var token = localStorage.getItem("hm_token");
-        if (!token) return;
-        var payload = JSON.parse(atob(token.split(".")[1].replace(/-/g,"+").replace(/_/g,"/")));
-        if (payload.role === "admin") {
-          var link = document.getElementById("adminNavLink");
-          if (link) link.style.display = "flex";
+        var t = localStorage.getItem("hm_token");
+        if (!t) return;
+        var p = JSON.parse(atob(t.split(".")[1].replace(/-/g,"+").replace(/_/g,"/")));
+        if (p.role === "admin") {
+          var el = document.getElementById("adminNavLink");
+          if (el) el.style.display = "";
         }
       } catch(_) {}
     })();

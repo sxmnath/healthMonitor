@@ -806,8 +806,9 @@ body {
 /* ─── Ward topbar title row ───────────────────────────────── */
 .ward-title-row {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
 }
 .ward-page-title {
   font-size: 1.15rem;
@@ -1339,8 +1340,7 @@ html {
 .ward-filter-wrap {
   display: flex;
   align-items: center;
-  gap: 7px;
-  margin-top: 6px;
+  gap: 6px;
 }
 .ward-filter-icon {
   font-size: 0.72rem;
@@ -1354,18 +1354,18 @@ html {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 5px 28px 5px 10px;
+  padding: 5px 26px 5px 10px;
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 9px center;
   cursor: pointer;
   outline: none;
   transition: border-color 0.2s ease-out, box-shadow 0.2s ease-out;
 }
-.ward-filter-select:hover  { border-color: var(--blue); }
-.ward-filter-select:focus  {
+.ward-filter-select:hover { border-color: var(--blue); }
+.ward-filter-select:focus {
   border-color: var(--blue);
   box-shadow: 0 0 0 3px var(--blue-light);
 }

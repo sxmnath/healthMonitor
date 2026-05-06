@@ -3,7 +3,7 @@ if (typeof requireAuth === "function" && !requireAuth()) throw new Error("redire
 
 const PATIENTS_API = "/api/patients";
 
-// Active ward filter — empty string means "all wards"
+// Active ward filter — empty string means all wards
 let _activeWard = "";
 
 function setWardWsStatus(state) {
@@ -125,13 +125,10 @@ function renderPatients(patients) {
 }
 
 async function fetchPatients(ward) {
-  // ward arg overrides — if omitted, use current _activeWard
   if (ward !== undefined) _activeWard = ward;
-
   const url = _activeWard
     ? `${PATIENTS_API}?ward=${encodeURIComponent(_activeWard)}`
     : PATIENTS_API;
-
   try {
     const res  = await authFetch(url);
     const data = await res.json();
@@ -139,7 +136,6 @@ async function fetchPatients(ward) {
   } catch (e) { console.warn("Failed to fetch patients:", e.message); }
 }
 
-// Called by the ward filter dropdown onchange
 function onWardChange(value) {
   fetchPatients(value);
 }
@@ -157,7 +153,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const socket = io();
   socket.on("connect",             () => setWardWsStatus("connected"));
   socket.on("disconnect",          () => setWardWsStatus("disconnected"));
-  socket.on("patient-list-update", () => fetchPatients());  // reuses _activeWard
+  socket.on("patient-list-update", () => fetchPatients());
 
   setInterval(fetchPatients, 5000);
 });

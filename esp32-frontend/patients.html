@@ -11,8 +11,6 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <link rel="stylesheet" href="style.css" />
   <script src="/socket.io/socket.io.js"></script>
-
-  <style>#adminNavLink{display:none}</style>
 </head>
 <body>
   <div class="app-layout">
@@ -32,7 +30,12 @@
           <i class="fa-solid fa-building-columns"></i>
           <span>Ward Overview</span>
         </a>
-        <a href="/admin" class="nav-item admin-only-link" id="adminNavLink" title="Admin Panel">
+        <a href="/profile" class="nav-item" title="My Profile">
+          <i class="fa-solid fa-circle-user"></i>
+          <span>My Profile</span>
+        </a>
+        <a href="/admin" class="nav-item" id="adminNavLink"
+           style="display:none" title="Admin Panel">
           <i class="fa-solid fa-shield-halved"></i>
           <span>Admin Panel</span>
         </a>
@@ -55,6 +58,17 @@
             <i class="fa-solid fa-building-columns"></i>
             Ward Overview
           </h1>
+          <div class="ward-filter-wrap">
+            <i class="fa-solid fa-filter ward-filter-icon"></i>
+            <select id="wardFilter" class="ward-filter-select"
+                    onchange="onWardChange(this.value)">
+              <option value="">All Wards</option>
+              <option value="ICU">ICU</option>
+              <option value="OPD">OPD</option>
+              <option value="Ward A">Ward A</option>
+              <option value="Ward B">Ward B</option>
+            </select>
+          </div>
         </div>
         <div class="topbar-meta">
           <div class="patient-count-pill">
@@ -112,16 +126,15 @@
   <script src="patients.js"></script>
 
   <script>
-    // Show Admin Panel sidebar link only for admins — purely cosmetic
-    // The admin page enforces role server-side
+    // Reveal Admin Panel sidebar link for admins only — cosmetic, backend enforces
     (function() {
       try {
-        var token = localStorage.getItem("hm_token");
-        if (!token) return;
-        var payload = JSON.parse(atob(token.split(".")[1].replace(/-/g,"+").replace(/_/g,"/")));
-        if (payload.role === "admin") {
-          var link = document.getElementById("adminNavLink");
-          if (link) link.style.display = "flex";
+        var t = localStorage.getItem("hm_token");
+        if (!t) return;
+        var p = JSON.parse(atob(t.split(".")[1].replace(/-/g,"+").replace(/_/g,"/")));
+        if (p.role === "admin") {
+          var el = document.getElementById("adminNavLink");
+          if (el) el.style.display = "";
         }
       } catch(_) {}
     })();
