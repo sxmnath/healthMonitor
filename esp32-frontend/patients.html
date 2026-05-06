@@ -30,15 +30,6 @@
           <i class="fa-solid fa-building-columns"></i>
           <span>Ward Overview</span>
         </a>
-        <a href="/profile" class="nav-item" title="My Profile">
-          <i class="fa-solid fa-circle-user"></i>
-          <span>My Profile</span>
-        </a>
-        <a href="/admin" class="nav-item" id="adminNavLink"
-           style="display:none" title="Admin Panel">
-          <i class="fa-solid fa-shield-halved"></i>
-          <span>Admin Panel</span>
-        </a>
       </nav>
       <div class="sidebar-bottom">
         <button class="nav-item logout-btn" onclick="logout()" title="Logout">
@@ -124,20 +115,5 @@
 
   <script src="hm-auth.js"></script>
   <script src="patients.js"></script>
-
-  <script>
-    // Reveal Admin Panel sidebar link for admins only — cosmetic, backend enforces
-    (function() {
-      try {
-        var t = localStorage.getItem("hm_token");
-        if (!t) return;
-        var p = JSON.parse(atob(t.split(".")[1].replace(/-/g,"+").replace(/_/g,"/")));
-        if (p.role === "admin") {
-          var el = document.getElementById("adminNavLink");
-          if (el) el.style.display = "";
-        }
-      } catch(_) {}
-    })();
-  </script>
 </body>
 </html>

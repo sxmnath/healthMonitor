@@ -8,9 +8,8 @@ const http       = require("http");
 const path       = require("path");
 const { Server } = require("socket.io");
 const User          = require("./models/User");
-const { protect, requireRole, authorizeRoles } = require("./middleware/auth");
+const { protect, requireRole } = require("./middleware/auth");
 const authRouter    = require("./routes/auth");
-const adminRouter   = require("./routes/admin");
 
 const app    = express();
 const server = http.createServer(app);
@@ -20,8 +19,7 @@ app.use(cors());
 app.use(express.json());
 app.use((req, _res, next) => { req.io = io; next(); });
 // ─── Auth Routes (public — no token needed) ──────────────────────────────────
-app.use("/api/auth",  authRouter);
-app.use("/api/admin", adminRouter);
+app.use("/api/auth", authRouter);
 
 app.use(express.static(path.join(__dirname, "../esp32-frontend"), { index: false }));
 
@@ -197,7 +195,13 @@ app.get("/api/patients", protect, async (req, res) => {
     if (mongoose.connection.readyState !== 1) {
       return res.json(demoPatients());
     }
-    const patients = await Patient.find({}).lean();
+    // Ward filter — exact match against canonical ward values
+    // Frontend dropdown only sends values from the fixed list so no regex needed
+    const query = {};
+    if (req.query.ward && req.query.ward.trim()) {
+      query.ward = req.query.ward.trim();
+    }
+    const patients = await Patient.find(query).lean();
     if (!patients.length) return res.json([]);
 
     const results = await Promise.all(patients.map(async (p) => {
@@ -261,13 +265,14 @@ app.get("/api/patients/:id", protect, async (req, res) => {
 
 // ─── POST /api/patients ───────────────────────────────────────────────────────
 // Create or update patient profile
-app.post("/api/patients", protect, authorizeRoles("admin","doctor","nurse"), async (req, res) => {
+app.post("/api/patients", protect, async (req, res) => {
   try {
     const { patient_id, deviceId } = req.body;
     if (!patient_id || !deviceId) return res.status(400).json({ error: "patient_id and deviceId required" });
     const allowed = ["name","age","gender","bloodType","weight","height","roomNo","ward","physician","diagnosis","phone","notes"];
     const update  = { deviceId };
     allowed.forEach(k => { if (req.body[k] !== undefined) update[k] = req.body[k]; });
+    if (update.ward) update.ward = update.ward.trim(); // normalise ward value
     const patient = await Patient.findOneAndUpdate(
       { patient_id },
       update,
@@ -281,11 +286,12 @@ app.post("/api/patients", protect, authorizeRoles("admin","doctor","nurse"), asy
 
 // ─── PATCH /api/patients/:id ──────────────────────────────────────────────────
 // Partial profile update (used by edit modal)
-app.patch("/api/patients/:id", protect, authorizeRoles("admin","doctor","nurse"), async (req, res) => {
+app.patch("/api/patients/:id", protect, async (req, res) => {
   try {
     const allowed = ["name","age","gender","bloodType","weight","height","roomNo","ward","physician","diagnosis","phone","notes"];
     const update  = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) update[k] = req.body[k]; });
+    if (update.ward) update.ward = update.ward.trim(); // normalise ward value
     const patient = await Patient.findOneAndUpdate({ patient_id: req.params.id }, update, { new: true });
     if (!patient) return res.status(404).json({ error: "Patient not found" });
 
@@ -370,7 +376,7 @@ app.get("/api/patients/:id/history", protect, async (req, res) => {
 
 // ─── DELETE /api/patients/:id/data ───────────────────────────────────────────
 // Reset all vitals for a patient (keeps profile)
-app.delete("/api/patients/:id/data", protect, authorizeRoles("admin","doctor"), async (req, res) => {
+app.delete("/api/patients/:id/data", protect, async (req, res) => {
   try {
     const result = await SensorData.deleteMany({ patient_id: req.params.id });
     const patient = await Patient.findOne({ patient_id: req.params.id }).lean();
@@ -386,7 +392,7 @@ app.delete("/api/patients/:id/data", protect, authorizeRoles("admin","doctor"), 
 // ─── DELETE /api/patients/:id/profile ────────────────────────────────────────
 // Clear all profile fields — keeps the Patient document (device stays registered)
 const PROFILE_FIELDS = ["name","age","gender","bloodType","weight","height","roomNo","ward","physician","diagnosis","phone","notes"];
-app.delete("/api/patients/:id/profile", protect, authorizeRoles("admin"), async (req, res) => {
+app.delete("/api/patients/:id/profile", protect, requireRole("admin"), async (req, res) => {
   try {
     const unset = {};
     PROFILE_FIELDS.forEach(k => { unset[k] = ""; });
@@ -409,11 +415,12 @@ app.delete("/api/patients/:id/profile", protect, authorizeRoles("admin"), async 
 
 // ─── Legacy /api/patient/:id routes (backwards compat) ───────────────────────
 app.get("/api/patient/:id",        protect, (req, res) => res.redirect(`/api/patients/${req.params.id}`));
-app.patch("/api/patient/:id",      protect, authorizeRoles("admin","doctor","nurse"), async (req, res) => {
+app.patch("/api/patient/:id",      protect, async (req, res) => {
   try {
     const allowed = ["name","age","gender","bloodType","weight","height","roomNo","ward","physician","diagnosis","phone","notes"];
     const update  = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) update[k] = req.body[k]; });
+    if (update.ward) update.ward = update.ward.trim(); // normalise ward value
     const patient = await Patient.findOneAndUpdate({ patient_id: req.params.id }, update, { new: true });
     if (!patient) return res.status(404).json({ error: "Patient not found" });
     io.emit("patient-profile-update", { patient_id: req.params.id });
@@ -497,7 +504,6 @@ app.get("/index.html", (_req, res) => res.redirect("/"));
 app.get("/",           (_req, res) => res.sendFile(path.join(__dirname, "../esp32-frontend/patients.html")));
 app.get("/patient",    (_req, res) => res.sendFile(path.join(__dirname, "../esp32-frontend/patient.html")));
 app.get("/profile",    (_req, res) => res.sendFile(path.join(__dirname, "../esp32-frontend/profile.html")));
-app.get("/admin",      (_req, res) => res.sendFile(path.join(__dirname, "../esp32-frontend/admin.html")));
 app.get("/login",      (_req, res) => res.sendFile(path.join(__dirname, "../esp32-frontend/login.html")));
 app.get("/signup",     (_req, res) => res.sendFile(path.join(__dirname, "../esp32-frontend/signup.html")));
 

@@ -3,8 +3,7 @@ if (typeof requireAuth === "function" && !requireAuth()) throw new Error("redire
 
 const PATIENTS_API = "/api/patients";
 
-// Active ward filter — empty string means all wards
-let _activeWard = "";
+let _activeWard = ""; // active ward filter
 
 function setWardWsStatus(state) {
   // WS status reflected via patient-count-pill border color
@@ -107,7 +106,7 @@ function renderPatients(patients) {
 
   if (!patients.length) {
     const emptyMsg = _activeWard
-      ? `No patients found in <strong>${_activeWard}</strong>.`
+      ? `No patients in <strong>${_activeWard}</strong>.`
       : "No patients connected yet. Waiting for ESP32 devices…";
     grid.innerHTML = `<div class="empty-state"><i class="fa-solid fa-plug-circle-xmark"></i><p>${emptyMsg}</p></div>`;
     return;
@@ -136,9 +135,7 @@ async function fetchPatients(ward) {
   } catch (e) { console.warn("Failed to fetch patients:", e.message); }
 }
 
-function onWardChange(value) {
-  fetchPatients(value);
-}
+function onWardChange(value) { fetchPatients(value); }
 
 document.addEventListener("DOMContentLoaded", () => {
   fetchCurrentUser();
