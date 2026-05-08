@@ -821,6 +821,40 @@ body {
 .ward-page-title i { color: var(--blue); font-size: 1rem; }
 .ward-subtitle { font-size: 0.8rem; color: var(--text-muted); }
 
+/* ─── Ward filter dropdown ────────────────────────────────── */
+.ward-filter-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 6px;
+}
+.ward-filter-icon {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.ward-filter-select {
+  font-family: var(--font);
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 5px 28px 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-primary);
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239b96a8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  min-width: 120px;
+}
+.ward-filter-select:hover { border-color: var(--border-mid); }
+.ward-filter-select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-light); }
+
 /* patient-count-pill already defined in style.css topbar-meta section */
 
 /* ─── Ward content wrapper ────────────────────────────────── */

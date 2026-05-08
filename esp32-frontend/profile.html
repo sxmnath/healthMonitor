@@ -408,14 +408,6 @@
             <span class="vrow-label">Role</span>
             <span class="vrow-val skel" id="viewRole">—</span>
           </div>
-          <div class="vrow">
-            <span class="vrow-label">Last Login</span>
-            <span class="vrow-muted skel" id="viewLastLogin">—</span>
-          </div>
-          <div class="vrow">
-            <span class="vrow-label">Member Since</span>
-            <span class="vrow-muted skel" id="viewSince">—</span>
-          </div>
         </div>
 
         <!-- Edit mode -->
@@ -645,9 +637,6 @@
     set("viewName",      "skel", u.name  || "—");
     set("viewEmail",     "skel", u.email || "—");
     set("viewRole",      "skel", cap(u.role));
-    set("viewLastLogin", "skel", fmtDateTime(u.lastLogin));
-    set("viewSince",     "skel", fmtDate(u.createdAt));
-
     // ── Edit inputs ──
     set("inpName",  "value", u.name  || "");
     set("inpEmail", "value", u.email || "");

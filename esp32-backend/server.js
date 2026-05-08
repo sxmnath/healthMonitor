@@ -585,6 +585,49 @@ app.get("/api/view/:token/alerts", viewerLimiter, async (req, res) => {
   }
 });
 
+// ─── GET /api/view/:token ─────────────────────────────────────────────────────
+// Public vitals endpoint — returns safe subset for family viewer.
+// No auth required. Rate limited to 60 req/min per IP.
+app.get("/api/view/:token", viewerLimiter, async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    if (!/^[0-9a-f]{64}$/.test(token)) {
+      return res.status(404).json({ error: "Viewer link not found." });
+    }
+
+    const patient = await Patient
+      .findOne({ viewerToken: token })
+      .select("+viewerToken patient_id name")
+      .lean();
+
+    if (!patient) {
+      return res.status(404).json({ error: "Viewer link not found." });
+    }
+
+    const latest = await SensorData
+      .findOne({ patient_id: patient.patient_id })
+      .sort({ time: -1 })
+      .lean();
+
+    if (!latest) {
+      return res.json({ name: patient.name, vitals: null, status: "unknown", lastSeen: null });
+    }
+
+    const vitals = { heartRate: latest.heartRate, spo2: latest.spo2, temperatureF: latest.temperatureF };
+    res.json({
+      name:     patient.name,
+      vitals,
+      status:   getStatus(vitals),
+      lastSeen: latest.time,
+    });
+
+  } catch (err) {
+    console.error("[GET /api/view/:token]", err);
+    res.status(500).json({ error: "Something went wrong." });
+  }
+});
+
 app.get("/index.html", (_req, res) => res.redirect("/"));
 app.get("/",           (_req, res) => res.sendFile(path.join(__dirname, "../esp32-frontend/patients.html")));
 app.get("/patient",    (_req, res) => res.sendFile(path.join(__dirname, "../esp32-frontend/patient.html")));
@@ -592,6 +635,7 @@ app.get("/profile",    (_req, res) => res.sendFile(path.join(__dirname, "../esp3
 app.get("/admin",      (_req, res) => res.sendFile(path.join(__dirname, "../esp32-frontend/admin.html")));
 app.get("/login",      (_req, res) => res.sendFile(path.join(__dirname, "../esp32-frontend/login.html")));
 app.get("/signup",     (_req, res) => res.sendFile(path.join(__dirname, "../esp32-frontend/signup.html")));
+app.get("/view/:token",(_req, res) => res.sendFile(path.join(__dirname, "../esp32-frontend/viewer.html")));
 
 // ─── Demo data (when DB is offline) ──────────────────────────────────────────
 function demoPatients() {
