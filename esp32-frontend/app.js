@@ -638,6 +638,76 @@ async function loadDashboard() {
   } catch (e) { console.warn("[poll]", e.message); }
 }
 
+// ─── Share with Family ────────────────────────────────────────────────────────
+var _shareUrl = "";
+
+async function shareFamily() {
+  var pid = PAGE_PATIENT_ID;
+  if (!pid) { showToast("No patient loaded.", true); return; }
+
+  var box = document.getElementById("shareUrlBox");
+  if (box) box.textContent = "Generating link…";
+
+  // Open modal immediately so user sees it working
+  var modal = document.getElementById("shareModal");
+  if (modal) modal.classList.add("open");
+
+  try {
+    var res  = await authFetch("/api/patients/" + encodeURIComponent(pid) + "/viewer-link", { method: "POST" });
+    var data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to generate link");
+    _shareUrl = data.url;
+    if (box) box.textContent = _shareUrl;
+  } catch (e) {
+    console.error("[shareFamily]", e);
+    if (box) box.textContent = "Error: " + e.message;
+  }
+}
+
+async function revokeAccess() {
+  var pid = PAGE_PATIENT_ID;
+  if (!pid) return;
+
+  try {
+    var res = await authFetch("/api/patients/" + encodeURIComponent(pid) + "/viewer-link", { method: "DELETE" });
+    if (!res.ok) { var d = await res.json(); throw new Error(d.error || "Revoke failed"); }
+    _shareUrl = "";
+    var box = document.getElementById("shareUrlBox");
+    if (box) box.textContent = "Access revoked. Generate a new link to share again.";
+    closeShareModal();
+    showToast("Family access revoked.");
+  } catch (e) {
+    console.error("[revokeAccess]", e);
+    showToast("Revoke failed: " + e.message, true);
+  }
+}
+
+function copyShareUrl() {
+  if (!_shareUrl) return;
+  var icon = document.getElementById("shareCopyIcon");
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(_shareUrl).then(function() {
+      if (icon) { icon.className = "fa-solid fa-check"; setTimeout(function() { icon.className = "fa-solid fa-copy"; }, 2000); }
+    }).catch(function() { fallbackCopy(); });
+  } else { fallbackCopy(); }
+
+  function fallbackCopy() {
+    var ta = document.createElement("textarea");
+    ta.value = _shareUrl;
+    ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); } catch (_) {}
+    document.body.removeChild(ta);
+    if (icon) { icon.className = "fa-solid fa-check"; setTimeout(function() { icon.className = "fa-solid fa-copy"; }, 2000); }
+  }
+}
+
+function closeShareModal() {
+  var modal = document.getElementById("shareModal");
+  if (modal) modal.classList.remove("open");
+}
+
 // ─── Boot ──────────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
   fetchCurrentUser();

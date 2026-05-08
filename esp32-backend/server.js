@@ -538,6 +538,7 @@ app.get("/index.html", (_req, res) => res.redirect("/"));
 app.get("/",           (_req, res) => res.sendFile(path.join(__dirname, "../esp32-frontend/patients.html")));
 app.get("/patient",    (_req, res) => res.sendFile(path.join(__dirname, "../esp32-frontend/patient.html")));
 app.get("/profile",    (_req, res) => res.sendFile(path.join(__dirname, "../esp32-frontend/profile.html")));
+app.get("/admin",      (_req, res) => res.sendFile(path.join(__dirname, "../esp32-frontend/admin.html")));
 app.get("/login",      (_req, res) => res.sendFile(path.join(__dirname, "../esp32-frontend/login.html")));
 app.get("/signup",     (_req, res) => res.sendFile(path.join(__dirname, "../esp32-frontend/signup.html")));
 

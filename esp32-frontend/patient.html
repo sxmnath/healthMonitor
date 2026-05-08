@@ -35,6 +35,15 @@
           <i class="fa-solid fa-user-injured"></i>
           <span>Patient</span>
         </a>
+        <a href="/profile" class="nav-item" title="My Profile">
+          <i class="fa-solid fa-circle-user"></i>
+          <span>My Profile</span>
+        </a>
+        <a href="/admin" class="nav-item" id="adminNavLink"
+           style="display:none" title="Admin Panel">
+          <i class="fa-solid fa-shield-halved"></i>
+          <span>Admin Panel</span>
+        </a>
       </nav>
       <div class="sidebar-bottom">
         <button class="nav-item logout-btn" onclick="logout()" title="Logout">
@@ -374,6 +383,19 @@
   </div>
   <script src="hm-auth.js"></script>
   <script src="app.js"></script>
+  <script>
+    (function() {
+      try {
+        var t = localStorage.getItem("hm_token");
+        if (!t) return;
+        var p = JSON.parse(atob(t.split(".")[1].replace(/-/g,"+").replace(/_/g,"/")));
+        if (p.role === "admin") {
+          var el = document.getElementById("adminNavLink");
+          if (el) el.style.display = "";
+        }
+      } catch(_) {}
+    })();
+  </script>
 
   <!-- ── Share with Family Modal ─────────────────────────── -->
   <div class="modal-overlay" id="shareModal">
