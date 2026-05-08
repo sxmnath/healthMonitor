@@ -136,12 +136,15 @@ function applyPatientPageGates() {
   const role = getRole();
 
   // ── Edit patient details button ──────────────────────────────────────────
-  // Viewers cannot edit patient data
-  gateElement("editBtn", Role.ADMIN, Role.DOCTOR, Role.NURSE);
+  gateElement("editBtn",         Role.ADMIN, Role.DOCTOR, Role.NURSE);
 
-  // ── Reset All Data button ────────────────────────────────────────────────
-  // Nurses and viewers cannot delete — only doctor/admin
-  gateElement("resetDataBtn", Role.ADMIN, Role.DOCTOR);
+  // ── Share with Family + Revoke — doctor/admin only ───────────────────────
+  gateElement("shareFamilyBtn",  Role.ADMIN, Role.DOCTOR);
+  gateElement("revokeAccessBtn", Role.ADMIN, Role.DOCTOR);
+  gateElement("shareRevokeBtn",  Role.ADMIN, Role.DOCTOR);
+
+  // ── Reset All Data button — doctor/admin only ─────────────────────────────
+  gateElement("resetDataBtn",    Role.ADMIN, Role.DOCTOR);
 
   // ── Role indicator on page (optional debug badge) ────────────────────────
   // If a role badge element exists, populate it

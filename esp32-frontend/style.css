@@ -806,9 +806,8 @@ body {
 /* ─── Ward topbar title row ───────────────────────────────── */
 .ward-title-row {
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 16px;
+  flex-direction: column;
+  gap: 2px;
 }
 .ward-page-title {
   font-size: 1.15rem;
@@ -1336,36 +1335,88 @@ html {
   font-family: var(--font);
 }
 
-/* ─── Ward filter dropdown ────────────────────────────────── */
-.ward-filter-wrap {
+/* ─── Share with Family button ───────────────────────────── */
+.action-footer-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.share-btn {
   display: flex;
   align-items: center;
   gap: 6px;
-}
-.ward-filter-icon {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-}
-.ward-filter-select {
+  padding: 7px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
   font-family: var(--font);
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-  background: var(--surface);
+  background: var(--normal-light);
+  color: var(--normal);
+  border: 1px solid #a8e6c4;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease-out;
+  white-space: nowrap;
+}
+.share-btn:hover { background: #d4f5e5; border-color: var(--normal); }
+
+.revoke-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: var(--font);
+  background: transparent;
+  color: var(--text-muted);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 5px 26px 5px 10px;
-  appearance: none;
-  -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 9px center;
   cursor: pointer;
-  outline: none;
-  transition: border-color 0.2s ease-out, box-shadow 0.2s ease-out;
+  transition: all 0.2s ease-out;
+  white-space: nowrap;
 }
-.ward-filter-select:hover { border-color: var(--blue); }
-.ward-filter-select:focus {
-  border-color: var(--blue);
-  box-shadow: 0 0 0 3px var(--blue-light);
+.revoke-btn:hover { background: var(--critical-light); color: var(--critical); border-color: var(--hr-mid); }
+
+/* ─── Share URL display in modal ─────────────────────────── */
+.share-url-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 10px;
 }
+.share-url-box {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  word-break: break-all;
+  line-height: 1.4;
+  min-height: 42px;
+}
+.share-copy-btn {
+  flex-shrink: 0;
+  width: 38px; height: 38px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--sidebar-bg);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: opacity 0.2s ease-out;
+}
+.share-copy-btn:hover { opacity: 0.82; }
+.share-hint {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.share-hint i { margin-top: 2px; color: var(--warning); flex-shrink: 0; }

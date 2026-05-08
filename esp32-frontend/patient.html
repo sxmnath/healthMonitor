@@ -248,9 +248,17 @@
           <!-- Footer actions -->
           <div class="action-footer">
             <span class="footer-note"><i class="fa-regular fa-clock"></i> <span id="footerUpdated">--</span></span>
-            <button class="reset-btn" id="resetDataBtn">
-              <i class="fa-solid fa-rotate-left"></i> Reset All Data
-            </button>
+            <div class="action-footer-btns">
+              <button class="share-btn" id="shareFamilyBtn">
+                <i class="fa-solid fa-share-nodes"></i> Share with Family
+              </button>
+              <button class="revoke-btn" id="revokeAccessBtn">
+                <i class="fa-solid fa-link-slash"></i> Revoke Access
+              </button>
+              <button class="reset-btn" id="resetDataBtn">
+                <i class="fa-solid fa-rotate-left"></i> Reset All Data
+              </button>
+            </div>
           </div>
 
         </section>
@@ -308,13 +316,7 @@
           </div>
           <div class="form-group">
             <label>Ward</label>
-            <select id="f-ward">
-              <option value="">— Select Ward —</option>
-              <option value="ICU">ICU</option>
-              <option value="OPD">OPD</option>
-              <option value="Ward A">Ward A</option>
-              <option value="Ward B">Ward B</option>
-            </select>
+            <input type="text" id="f-ward" placeholder="e.g. ICU">
           </div>
           <div class="form-group form-full">
             <label>Attending Physician</label>
@@ -372,5 +374,37 @@
   </div>
   <script src="hm-auth.js"></script>
   <script src="app.js"></script>
+
+  <!-- ── Share with Family Modal ─────────────────────────── -->
+  <div class="modal-overlay" id="shareModal">
+    <div class="modal-box modal-box-sm">
+      <div class="modal-header">
+        <h2><i class="fa-solid fa-share-nodes"></i> Share with Family</h2>
+        <button class="modal-close" id="shareModalClose"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <p class="confirm-body-text">
+          Share this link with family members to give them read-only access
+          to this patient's live vitals. No login required.
+        </p>
+        <div class="share-url-wrap">
+          <div class="share-url-box" id="shareUrlBox">Generating link…</div>
+          <button class="share-copy-btn" id="shareCopyBtn" onclick="copyShareUrl()" title="Copy link">
+            <i class="fa-solid fa-copy" id="shareCopyIcon"></i>
+          </button>
+        </div>
+        <p class="share-hint">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          Anyone with this link can view vitals. Revoke access to disable it.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" id="shareModalCancel">Close</button>
+        <button class="btn-danger" id="shareRevokeBtn" onclick="revokeAccess()">
+          <i class="fa-solid fa-link-slash"></i> Revoke Access
+        </button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

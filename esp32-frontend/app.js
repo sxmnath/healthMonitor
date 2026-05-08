@@ -526,7 +526,7 @@ async function saveModal() {
   const gn = id => { const v = document.getElementById(id)?.value; return v ? Number(v) : undefined; };
   const data = {
     name: g("f-name"), age: gn("f-age"), gender: g("f-gender"), bloodType: g("f-bloodType"),
-    weight: gn("f-weight"), height: gn("f-height"), roomNo: g("f-roomNo"), ward: (g("f-ward") || "").trim(),
+    weight: gn("f-weight"), height: gn("f-height"), roomNo: g("f-roomNo"), ward: g("f-ward"),
     physician: g("f-physician"), diagnosis: g("f-diagnosis"), phone: g("f-phone"),
     notes: document.getElementById("f-notes")?.value?.trim(),
   };
@@ -641,6 +641,7 @@ async function loadDashboard() {
 // ─── Boot ──────────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
   fetchCurrentUser();
+  applyPatientPageGates();
   initCharts();
   setWsStatus("connecting");
   loadPatientProfile();
@@ -708,6 +709,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Reset button — opens confirm modal
   document.getElementById("resetDataBtn")?.addEventListener("click", resetPatientData);
+  document.getElementById("shareFamilyBtn")?.addEventListener("click", shareFamily);
+  document.getElementById("revokeAccessBtn")?.addEventListener("click", revokeAccess);
+  document.getElementById("shareModalClose")?.addEventListener("click", closeShareModal);
+  document.getElementById("shareModalCancel")?.addEventListener("click", closeShareModal);
+  document.getElementById("shareModal")?.addEventListener("click", e => {
+    if (e.target.id === "shareModal") closeShareModal();
+  });
 
   // Confirm modal buttons
   document.getElementById("confirmResetBtn")?.addEventListener("click", executeReset);
