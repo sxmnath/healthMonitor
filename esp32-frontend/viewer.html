@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a1a2e" />
+  <title>Patient Status</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ── Tokens (subset — no sidebar/layout needed) ─── */
+    :root {
+      --bg:            #f5f0e8;
+      --surface:       #ffffff;
+      --surface-2:     #faf8f4;
+      --sidebar-bg:    #1a1a2e;
+      --sidebar-accent:#e8b4cb;
+      --border:        #e8e2d8;
+      --border-mid:    #d4cec4;
+      --text-primary:  #1a1a2e;
+      --text-secondary:#5a5570;
+      --text-muted:    #9b96a8;
+      --hr-color:      #e05c6e;
+      --hr-light:      #fdedf0;
+      --hr-mid:        #f5b8c2;
+      --spo2-color:    #4ab3c8;
+      --spo2-light:    #e8f7fb;
+      --spo2-mid:      #a8dceb;
+      --temp-color:    #e0963c;
+      --temp-light:    #fef4e6;
+      --temp-mid:      #f5d09a;
+      --normal:        #3dab6e;
+      --normal-light:  #eaf7f0;
+      --warning:       #e09a3c;
+      --warning-light: #fef4e6;
+      --critical:      #e05c5c;
+      --critical-light:#fdeaea;
+      --radius-sm:     8px;
+      --radius-md:     14px;
+      --radius-lg:     20px;
+      --shadow-sm:     0 1px 4px rgba(26,26,46,0.06);
+      --shadow-md:     0 4px 16px rgba(26,26,46,0.09);
+      --font:          'Outfit', sans-serif;
+      --font-mono:     'DM Mono', monospace;
+    }
+
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text-primary);
+      min-height: 100dvh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Page wrapper ──────────────────────────────────── */
+    .page {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 24px 16px 48px;
+    }
+
+    /* ── Header bar ────────────────────────────────────── */
+    .vheader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    .vbrand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+    }
+    .vbrand-icon {
+      width: 32px; height: 32px;
+      background: var(--sidebar-bg);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .vbrand-icon svg { width: 18px; height: 18px; }
+    .vbrand-name {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+    .live-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--normal);
+      background: var(--normal-light);
+      border: 1px solid #a8e6c4;
+      border-radius: 99px;
+      padding: 4px 10px;
+    }
+    .live-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--normal);
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; transform: scale(1); }
+      50%      { opacity: 0.4; transform: scale(0.7); }
+    }
+
+    /* ── Patient hero card ─────────────────────────────── */
+    .patient-hero {
+      background: var(--sidebar-bg);
+      border-radius: var(--radius-lg);
+      padding: 24px 20px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: var(--shadow-md);
+    }
+    .patient-avatar {
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      background: rgba(232,180,203,0.15);
+      border: 2px solid rgba(232,180,203,0.3);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      font-size: 1.4rem;
+    }
+    .patient-info { flex: 1; min-width: 0; }
+    .patient-name {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+    .patient-label {
+      font-size: 0.76rem;
+      color: rgba(255,255,255,0.45);
+      font-weight: 500;
+    }
+
+    /* ── Status banner ─────────────────────────────────── */
+    .status-banner {
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow-sm);
+    }
+    .status-banner.stable   { background: var(--normal-light);   border: 1px solid #a8e6c4; }
+    .status-banner.warning  { background: var(--warning-light);  border: 1px solid #f5d09a; }
+    .status-banner.critical { background: var(--critical-light); border: 1px solid #f5b8b8; }
+    .status-banner.unknown  { background: var(--surface-2);      border: 1px solid var(--border); }
+
+    .status-icon {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+    .stable   .status-icon { background: var(--normal);   color: #fff; }
+    .warning  .status-icon { background: var(--warning);  color: #fff; }
+    .critical .status-icon { background: var(--critical); color: #fff; }
+    .unknown  .status-icon { background: var(--border-mid); color: var(--text-muted); }
+
+    .status-text { flex: 1; }
+    .status-label {
+      font-size: 1.05rem;
+      font-weight: 700;
+    }
+    .stable   .status-label { color: var(--normal); }
+    .warning  .status-label { color: var(--warning); }
+    .critical .status-label { color: var(--critical); }
+    .unknown  .status-label { color: var(--text-muted); }
+
+    .status-sublabel {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    /* ── Vitals grid ───────────────────────────────────── */
+    .vitals-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .vital-card {
+      background: var(--surface);
+      border-radius: var(--radius-md);
+      padding: 18px 16px;
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+    /* Accent stripe at top */
+    .vital-card::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      border-radius: var(--radius-md) var(--radius-md) 0 0;
+    }
+    .vital-card.hr   { --c: var(--hr-color);   --cl: var(--hr-light);   --cm: var(--hr-mid); }
+    .vital-card.spo2 { --c: var(--spo2-color); --cl: var(--spo2-light); --cm: var(--spo2-mid); }
+    .vital-card.temp { --c: var(--temp-color); --cl: var(--temp-light); --cm: var(--temp-mid); }
+    .vital-card::before { background: var(--c); }
+
+    .vital-icon-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .vital-icon {
+      width: 34px; height: 34px;
+      border-radius: var(--radius-sm);
+      background: var(--cl);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem;
+      color: var(--c);
+    }
+    .vital-unit {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-family: var(--font-mono);
+    }
+    .vital-value {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1;
+      font-family: var(--font-mono);
+      margin-bottom: 4px;
+    }
+    .vital-value.unavailable {
+      font-size: 1.5rem;
+      color: var(--text-muted);
+    }
+    .vital-label {
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    /* SpO2 spans full width */
+    .vital-card.spo2 {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0 20px;
+      align-items: center;
+    }
+    .vital-card.spo2 .vital-value {
+      font-size: 2.8rem;
+    }
+    .vital-card.spo2 .spo2-right {
+      text-align: right;
+    }
+
+    /* ── Last updated footer ───────────────────────────── */
+    .update-footer {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.82rem;
+    }
+    .update-footer-label {
+      color: var(--text-muted);
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .update-footer-time {
+      color: var(--text-secondary);
+      font-weight: 600;
+      font-family: var(--font-mono);
+    }
+    .refresh-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.8rem;
+      padding: 4px;
+      border-radius: 4px;
+      transition: color 0.2s, background 0.2s;
+      display: flex; align-items: center; gap: 4px;
+      font-family: var(--font);
+    }
+    .refresh-btn:hover { color: var(--text-secondary); background: var(--surface-2); }
+    .refresh-btn.spinning svg { animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Error / loading states ────────────────────────── */
+    .full-center {
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 32px 24px;
+      gap: 12px;
+    }
+    .state-icon { font-size: 3rem; margin-bottom: 8px; }
+    .state-title { font-size: 1.2rem; font-weight: 700; color: var(--text-primary); }
+    .state-sub   { font-size: 0.88rem; color: var(--text-secondary); max-width: 280px; line-height: 1.5; }
+
+    /* ── Finger sensor notice ──────────────────────────── */
+    .sensor-notice {
+      background: var(--surface-2);
+      border: 1px dashed var(--border-mid);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      display: flex; align-items: center; gap: 6px;
+      margin-top: 6px;
+    }
+
+    /* ── Page fade-in ──────────────────────────────────── */
+    .page { animation: fadeIn 0.3s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+    /* ── Responsive: very small screens ───────────────── */
+    @media (max-width: 340px) {
+      .vital-value { font-size: 1.8rem; }
+      .vital-card.spo2 .vital-value { font-size: 2.2rem; }
+    }
+
+    /* ── Alerts section ─────────────────────────────────── */
+    .alerts-section {
+      margin-top: 12px;
+    }
+    .alerts-section-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Latest alert — prominent */
+    .alert-latest {
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 10px;
+      box-shadow: var(--shadow-sm);
+      animation: fadeIn 0.3s ease-out;
+    }
+    .alert-latest.critical {
+      background: var(--critical-light);
+      border: 1px solid #f5b8b8;
+    }
+    .alert-latest.warning {
+      background: var(--warning-light);
+      border: 1px solid #f5d09a;
+    }
+    .alert-latest-icon {
+      font-size: 1.2rem;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .alert-latest-body { flex: 1; min-width: 0; }
+    .alert-latest-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 3px;
+    }
+    .alert-latest.critical .alert-latest-label { color: var(--critical); }
+    .alert-latest.warning  .alert-latest-label { color: var(--warning); }
+    .alert-latest-msg {
+      font-size: 0.88rem;
+      color: var(--text-primary);
+      font-weight: 500;
+      line-height: 1.4;
+      margin-bottom: 4px;
+    }
+    .alert-latest-time {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+    }
+
+    /* History list */
+    .alert-history {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+    .alert-history-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-2);
+    }
+    .alert-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.83rem;
+    }
+    .alert-row:last-child { border-bottom: none; }
+    .alert-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .alert-dot.critical { background: var(--critical); }
+    .alert-dot.warning  { background: var(--warning); }
+    .alert-row-msg  { flex: 1; color: var(--text-secondary); line-height: 1.3; }
+    .alert-row-time { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+
+    .no-alerts {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 18px;
+      text-align: center;
+      font-size: 0.83rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script>
+  // Extract token from URL: /view/<token>
+  var token = location.pathname.split("/view/")[1] || "";
+  var POLL_INTERVAL = 30000;  // refresh every 30s
+  var _pollTimer = null;
+  var _lastData  = null;
+  var _alerts    = [];        // cached alert list
+
+  // ── Render helpers ─────────────────────────────────────────────────────────
+  function fmtTime(iso) {
+    if (!iso) return "—";
+    var d = new Date(iso);
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  }
+
+  function fmtTemp(f) {
+    if (f == null) return null;
+    // Show °C for international audiences: °C = (°F - 32) × 5/9
+    return ((f - 32) * 5 / 9).toFixed(1);
+  }
+
+  function fmtRelTime(iso) {
+    if (!iso) return "—";
+    var diff = Math.floor((Date.now() - new Date(iso)) / 1000);
+    if (diff < 60)  return diff + "s ago";
+    if (diff < 3600) return Math.floor(diff/60) + "m ago";
+    return Math.floor(diff/3600) + "h ago";
+  }
+
+  // Plain-English translation of technical alert types
+  function alertLabel(type) {
+    return {
+      spo2_low:      "Low Blood Oxygen",
+      hr_high:       "Elevated Heart Rate",
+      hr_low:        "Low Heart Rate",
+      temp_high:     "High Temperature",
+      temp_low:      "Low Temperature",
+      sensor_off:    "Sensor Disconnected",
+      multi_critical:"Multiple Alerts",
+    }[type] || "Alert";
+  }
+
+  function renderAlerts() {
+    var wrap = document.getElementById("alertsWrap");
+    if (!wrap) return;
+    if (!_alerts.length) {
+      wrap.innerHTML = '<div class="no-alerts">✓ No recent alerts</div>';
+      return;
+    }
+    var latest = _alerts[0];
+    var icon   = latest.severity === "critical" ? "🚨" : "⚠️";
+    var out = '<div class="alert-latest ' + latest.severity + '">'
+      + '<div class="alert-latest-icon">' + icon + '</div>'
+      + '<div class="alert-latest-body">'
+        + '<div class="alert-latest-label">' + alertLabel(latest.type) + '</div>'
+        + '<div class="alert-latest-msg">' + latest.message + '</div>'
+        + '<div class="alert-latest-time">' + fmtRelTime(latest.createdAt) + '</div>'
+      + '</div>'
+    + '</div>';
+    if (_alerts.length > 1) {
+      out += '<div class="alert-history">'
+        + '<div class="alert-history-title">Recent Alerts</div>';
+      _alerts.slice(1).forEach(function(a) {
+        out += '<div class="alert-row">'
+          + '<div class="alert-dot ' + a.severity + '"></div>'
+          + '<div class="alert-row-msg">' + alertLabel(a.type) + ' — ' + a.message + '</div>'
+          + '<div class="alert-row-time">' + fmtRelTime(a.createdAt) + '</div>'
+        + '</div>';
+      });
+      out += '</div>';
+    }
+    wrap.innerHTML = out;
+  }
+
+  function statusMeta(status) {
+    return {
+      stable:   { icon: "✓",  label: "Stable",            sub: "Vitals are within normal range." },
+      warning:  { icon: "⚠",  label: "Needs Attention",   sub: "Some vitals are outside normal range." },
+      critical: { icon: "!",  label: "Critical",           sub: "Please contact the medical team." },
+      unknown:  { icon: "?",  label: "No Data Yet",        sub: "Waiting for sensor readings." },
+    }[status] || { icon: "?", label: "Unknown", sub: "" };
+  }
+
+  // ── Render the full page ───────────────────────────────────────────────────
+  function render(data) {
+    _lastData = data;
+    var v      = data.vitals || {};
+    var status = data.status || "unknown";
+    var meta   = statusMeta(status);
+    var hr     = v.heartRate;
+    var spo2   = v.spo2;
+    var tempC  = fmtTemp(v.temperatureF);
+    var spoMissing = spo2 === -1 || spo2 == null;
+
+    document.getElementById("root").innerHTML =
+      '<div class="page">'
+
+        // Header
+        + '<div class="vheader">'
+          + '<div class="vbrand">'
+            + '<div class="vbrand-icon">'
+              + '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">'
+                + '<path d="M32 50C32 50 10 36 10 22C10 15 15.5 10 22 10C26.2 10 30 12.5 32 16C34 12.5 37.8 10 42 10C48.5 10 54 15 54 22C54 36 32 50 32 50Z" fill="#e8b4cb"/>'
+                + '<polyline points="14,28 20,28 23,21 27,35 31,24 34,31 37,28 50,28" fill="none" stroke="#1a1a2e" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>'
+              + '</svg>'
+            + '</div>'
+            + '<span class="vbrand-name">healthMonitor</span>'
+          + '</div>'
+          + '<div class="live-pill"><div class="live-dot"></div>Live</div>'
+        + '</div>'
+
+        // Patient hero
+        + '<div class="patient-hero">'
+          + '<div class="patient-avatar">🏥</div>'
+          + '<div class="patient-info">'
+            + '<div class="patient-name">' + (data.name || "Patient") + '</div>'
+            + '<div class="patient-label">Patient Status Report</div>'
+          + '</div>'
+        + '</div>'
+
+        // Status banner
+        + '<div class="status-banner ' + status + '">'
+          + '<div class="status-icon">' + meta.icon + '</div>'
+          + '<div class="status-text">'
+            + '<div class="status-label">' + meta.label + '</div>'
+            + '<div class="status-sublabel">' + meta.sub + '</div>'
+          + '</div>'
+        + '</div>'
+
+        // Vitals grid
+        + '<div class="vitals-grid">'
+
+          // Heart Rate
+          + '<div class="vital-card hr">'
+            + '<div class="vital-icon-row">'
+              + '<div class="vital-icon">♥</div>'
+              + '<span class="vital-unit">bpm</span>'
+            + '</div>'
+            + (hr != null
+              ? '<div class="vital-value">' + hr + '</div>'
+              : '<div class="vital-value unavailable">—</div>')
+            + '<div class="vital-label">Heart Rate</div>'
+          + '</div>'
+
+          // Temperature
+          + '<div class="vital-card temp">'
+            + '<div class="vital-icon-row">'
+              + '<div class="vital-icon">🌡</div>'
+              + '<span class="vital-unit">°C</span>'
+            + '</div>'
+            + (tempC != null
+              ? '<div class="vital-value">' + tempC + '</div>'
+              : '<div class="vital-value unavailable">—</div>')
+            + '<div class="vital-label">Temperature</div>'
+          + '</div>'
+
+          // SpO2 — full width
+          + '<div class="vital-card spo2">'
+            + '<div>'
+              + '<div class="vital-icon-row">'
+                + '<div class="vital-icon">◉</div>'
+                + '<span class="vital-unit">%</span>'
+              + '</div>'
+              + (spoMissing
+                ? '<div class="vital-value unavailable">—</div>'
+                : '<div class="vital-value">' + spo2 + '</div>')
+              + '<div class="vital-label">Blood Oxygen (SpO₂)</div>'
+              + (spoMissing ? '<div class="sensor-notice">📍 Place finger on the sensor</div>' : '')
+            + '</div>'
+            + '<div class="spo2-right">'
+              + '<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">'
+                + '<circle cx="32" cy="32" r="28" stroke="' + (spoMissing ? "#d4cec4" : "#a8dceb") + '" stroke-width="5" fill="none"/>'
+                + (spoMissing ? '' : '<circle cx="32" cy="32" r="28" stroke="#4ab3c8" stroke-width="5" fill="none" stroke-dasharray="' + (175.9 * spo2 / 100).toFixed(1) + ' 175.9" stroke-dashoffset="44" stroke-linecap="round"/>')
+              + '</svg>'
+            + '</div>'
+          + '</div>'
+
+        + '</div>'
+
+        // Last updated footer
+        + '<div class="update-footer">'
+          + '<span class="update-footer-label">'
+            + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
+            + 'Last updated'
+          + '</span>'
+          + '<span class="update-footer-time" id="lastSeen">' + fmtTime(data.lastSeen) + '</span>'
+          + '<button class="refresh-btn" id="refreshBtn" onclick="refresh()">'
+            + '<svg id="refreshIcon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>'
+            + 'Refresh'
+          + '</button>'
+        + '</div>'
+
+        // Alerts section
+        + '<div class="alerts-section">'
+          + '<div class="alerts-section-title">🔔 Alerts</div>'
+          + '<div id="alertsWrap"><div class="no-alerts">✓ No recent alerts</div></div>'
+        + '</div>'
+
+      + '</div>';
+  }
+
+  // ── Render error states ────────────────────────────────────────────────────
+  function renderNotFound() {
+    document.getElementById("root").innerHTML =
+      '<div class="full-center">'
+        + '<div class="state-icon">🔗</div>'
+        + '<div class="state-title">Link Not Found</div>'
+        + '<div class="state-sub">This viewer link is invalid or has been revoked by the medical team.</div>'
+      + '</div>';
+  }
+
+  function renderError() {
+    document.getElementById("root").innerHTML =
+      '<div class="full-center">'
+        + '<div class="state-icon">⚠️</div>'
+        + '<div class="state-title">Connection Problem</div>'
+        + '<div class="state-sub">Could not reach the server. Please check your connection and try again.</div>'
+        + '<button onclick="location.reload()" style="margin-top:16px;padding:10px 22px;'
+          + 'background:#1a1a2e;color:#fff;border:none;border-radius:8px;'
+          + 'font-family:inherit;font-size:0.88rem;font-weight:600;cursor:pointer;">Try Again</button>'
+      + '</div>';
+  }
+
+  function renderLoading() {
+    document.getElementById("root").innerHTML =
+      '<div class="full-center">'
+        + '<div style="width:40px;height:40px;border:3px solid #e8e2d8;border-top-color:#1a1a2e;'
+          + 'border-radius:50%;animation:spin 0.8s linear infinite"></div>'
+        + '<div class="state-sub" style="margin-top:16px">Loading patient status…</div>'
+        + '<style>@keyframes spin{to{transform:rotate(360deg)}}</style>'
+      + '</div>';
+  }
+
+  // ── Fetch data ─────────────────────────────────────────────────────────────
+  async function fetchAlerts() {
+    try {
+      var res = await fetch("/api/view/" + token + "/alerts");
+      if (!res.ok) return;
+      var data = await res.json();
+      _alerts = data.alerts || [];
+      renderAlerts();
+    } catch (e) { /* non-fatal */ }
+  }
+
+  async function fetchData() {
+    try {
+      var res = await fetch("/api/view/" + token);
+      if (res.status === 404) { renderNotFound(); stopPoll(); return; }
+      if (!res.ok) { renderError(); return; }
+      var data = await res.json();
+      render(data);
+    } catch (e) {
+      // Network error — show error only if we have no previous data to display
+      if (!_lastData) renderError();
+    }
+  }
+
+  async function refresh() {
+    var btn  = document.getElementById("refreshBtn");
+    var icon = document.getElementById("refreshIcon");
+    if (btn) btn.classList.add("spinning");
+    await fetchData();
+    if (btn) btn.classList.remove("spinning");
+  }
+
+  function stopPoll() {
+    clearInterval(_pollTimer);
+    _pollTimer = null;
+  }
+
+  // ── WebSocket with polling fallback ───────────────────────────────────────
+  var _socket = null;
+  var _wsOk   = false;
+
+  function connectSocket() {
+    try {
+      _socket = io({ transports: ["websocket", "polling"] });
+
+      _socket.on("connect", function() {
+        // Send token to server — server validates and joins viewer:<patient_id>
+        _socket.emit("join-viewer", token);
+      });
+
+      // Server confirmed join — WebSocket is live, stop HTTP polling
+      _socket.on("viewer-joined", function() {
+        _wsOk = true;
+        stopPoll();
+        console.log("[viewer] WebSocket active — polling stopped");
+      });
+
+      // Live vitals pushed from server
+      _socket.on("vitals-update", function(data) {
+        if (_wsOk) render(data);
+      });
+
+      // Server rejected the token
+      _socket.on("viewer-error", function(err) {
+        console.warn("[viewer] WS error:", err.error);
+        _wsOk = false;
+        // Keep HTTP polling as fallback — renderNotFound only on 404
+      });
+
+      _socket.on("disconnect", function() {
+        _wsOk = false;
+        // Restart polling so page stays fresh if WS drops
+        if (!_pollTimer) _pollTimer = setInterval(fetchData, POLL_INTERVAL);
+      });
+
+    } catch (e) {
+      // Socket.io not available (e.g. CSP block) — polling only
+      console.warn("[viewer] Socket.io unavailable, polling only");
+    }
+  }
+
+  // ── Boot ───────────────────────────────────────────────────────────────────
+  if (!token || token.length !== 64) {
+    renderNotFound();
+  } else {
+    renderLoading();
+    fetchData();                                        // immediate first load
+    fetchAlerts();                                      // load alerts on boot
+    _pollTimer = setInterval(function() {               // 30s polling backup
+      fetchData();
+      fetchAlerts();
+    }, POLL_INTERVAL);
+    connectSocket();                                    // WS upgrade (stops vitals poll on success)
+  }
+</script>
+</body>
+</html>

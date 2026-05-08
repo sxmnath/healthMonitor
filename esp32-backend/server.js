@@ -2,12 +2,14 @@
 require("dotenv").config();
 
 const express    = require("express");
+const rateLimit  = require("express-rate-limit");
 const mongoose   = require("mongoose");
 const cors       = require("cors");
 const http       = require("http");
 const path       = require("path");
 const { Server } = require("socket.io");
 const User          = require("./models/User");
+const Alert         = require("./models/Alert");
 const { protect, requireRole } = require("./middleware/auth");
 const authRouter    = require("./routes/auth");
 
@@ -195,13 +197,7 @@ app.get("/api/patients", protect, async (req, res) => {
     if (mongoose.connection.readyState !== 1) {
       return res.json(demoPatients());
     }
-    // Ward filter — exact match against canonical ward values
-    // Frontend dropdown only sends values from the fixed list so no regex needed
-    const query = {};
-    if (req.query.ward && req.query.ward.trim()) {
-      query.ward = req.query.ward.trim();
-    }
-    const patients = await Patient.find(query).lean();
+    const patients = await Patient.find({}).lean();
     if (!patients.length) return res.json([]);
 
     const results = await Promise.all(patients.map(async (p) => {
@@ -272,7 +268,6 @@ app.post("/api/patients", protect, async (req, res) => {
     const allowed = ["name","age","gender","bloodType","weight","height","roomNo","ward","physician","diagnosis","phone","notes"];
     const update  = { deviceId };
     allowed.forEach(k => { if (req.body[k] !== undefined) update[k] = req.body[k]; });
-    if (update.ward) update.ward = update.ward.trim(); // normalise ward value
     const patient = await Patient.findOneAndUpdate(
       { patient_id },
       update,
@@ -291,7 +286,6 @@ app.patch("/api/patients/:id", protect, async (req, res) => {
     const allowed = ["name","age","gender","bloodType","weight","height","roomNo","ward","physician","diagnosis","phone","notes"];
     const update  = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) update[k] = req.body[k]; });
-    if (update.ward) update.ward = update.ward.trim(); // normalise ward value
     const patient = await Patient.findOneAndUpdate({ patient_id: req.params.id }, update, { new: true });
     if (!patient) return res.status(404).json({ error: "Patient not found" });
 
@@ -420,7 +414,6 @@ app.patch("/api/patient/:id",      protect, async (req, res) => {
     const allowed = ["name","age","gender","bloodType","weight","height","roomNo","ward","physician","diagnosis","phone","notes"];
     const update  = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) update[k] = req.body[k]; });
-    if (update.ward) update.ward = update.ward.trim(); // normalise ward value
     const patient = await Patient.findOneAndUpdate({ patient_id: req.params.id }, update, { new: true });
     if (!patient) return res.status(404).json({ error: "Patient not found" });
     io.emit("patient-profile-update", { patient_id: req.params.id });
@@ -500,6 +493,47 @@ io.on("connection", (socket) => {
 });
 
 // ─── Page routes ──────────────────────────────────────────────────────────────
+const viewerLimiter = rateLimit({
+  windowMs: 60 * 1000, max: 60,
+  standardHeaders: true, legacyHeaders: false,
+  message: { error: "Too many requests. Please slow down." },
+});
+
+// ─── GET /api/view/:token/alerts ─────────────────────────────────────────────
+// Returns the 5 most recent alerts for the patient linked to this viewer token.
+// Public — no authentication. Same rate limiter as GET /api/view/:token.
+app.get("/api/view/:token/alerts", viewerLimiter, async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    if (!/^[0-9a-f]{64}$/.test(token)) {
+      return res.status(404).json({ error: "Viewer link not found." });
+    }
+
+    const patient = await Patient
+      .findOne({ viewerToken: token })
+      .select("+viewerToken patient_id")
+      .lean();
+
+    if (!patient) {
+      return res.status(404).json({ error: "Viewer link not found." });
+    }
+
+    const alerts = await Alert
+      .find({ patient_id: patient.patient_id })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select("severity type message createdAt -_id")
+      .lean();
+
+    res.status(200).json({ alerts });
+
+  } catch (err) {
+    console.error("[GET /api/view/:token/alerts]", err);
+    res.status(500).json({ error: "Something went wrong." });
+  }
+});
+
 app.get("/index.html", (_req, res) => res.redirect("/"));
 app.get("/",           (_req, res) => res.sendFile(path.join(__dirname, "../esp32-frontend/patients.html")));
 app.get("/patient",    (_req, res) => res.sendFile(path.join(__dirname, "../esp32-frontend/patient.html")));
