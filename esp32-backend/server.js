@@ -421,7 +421,7 @@ app.delete("/api/patients/:id/profile", protect, requireRole("admin"), async (re
 // ─── POST /api/patients/:id/viewer-link ───────────────────────────────────────
 // Generate a secure random viewer token and return a shareable URL.
 // Access: doctor and admin only.
-app.post("/api/patients/:id/viewer-link", protect, authorizeRoles("admin", "doctor"), async (req, res) => {
+app.post("/api/patients/:id/viewer-link", protect, authorizeRoles("admin", "doctor", "nurse"), async (req, res) => {
   try {
     const patient = await Patient.findOne({ patient_id: req.params.id }).select("+viewerToken");
     if (!patient) return res.status(404).json({ error: "Patient not found" });
@@ -442,7 +442,7 @@ app.post("/api/patients/:id/viewer-link", protect, authorizeRoles("admin", "doct
 // ─── DELETE /api/patients/:id/viewer-link ─────────────────────────────────────
 // Revoke the viewer token — any existing link immediately becomes dead.
 // Access: doctor and admin only.
-app.delete("/api/patients/:id/viewer-link", protect, authorizeRoles("admin", "doctor"), async (req, res) => {
+app.delete("/api/patients/:id/viewer-link", protect, authorizeRoles("admin", "doctor", "nurse"), async (req, res) => {
   try {
     const patient = await Patient.findOne({ patient_id: req.params.id }).select("+viewerToken");
     if (!patient) return res.status(404).json({ error: "Patient not found" });

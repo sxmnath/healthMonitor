@@ -139,9 +139,9 @@ function applyPatientPageGates() {
   gateElement("editBtn",         Role.ADMIN, Role.DOCTOR, Role.NURSE);
 
   // ── Share with Family + Revoke — doctor/admin only ───────────────────────
-  gateElement("shareFamilyBtn",  Role.ADMIN, Role.DOCTOR);
-  gateElement("revokeAccessBtn", Role.ADMIN, Role.DOCTOR);
-  gateElement("shareRevokeBtn",  Role.ADMIN, Role.DOCTOR);
+  gateElement("shareFamilyBtn",  Role.ADMIN, Role.DOCTOR, Role.NURSE);
+  gateElement("revokeAccessBtn", Role.ADMIN, Role.DOCTOR, Role.NURSE);
+  gateElement("shareRevokeBtn",  Role.ADMIN, Role.DOCTOR, Role.NURSE);
 
   // ── Reset All Data button — doctor/admin only ─────────────────────────────
   gateElement("resetDataBtn",    Role.ADMIN, Role.DOCTOR);
