@@ -7,11 +7,13 @@ const mongoose   = require("mongoose");
 const cors       = require("cors");
 const http       = require("http");
 const path       = require("path");
+const crypto     = require("crypto");
 const { Server } = require("socket.io");
 const User          = require("./models/User");
 const Alert         = require("./models/Alert");
-const { protect, requireRole } = require("./middleware/auth");
+const { protect, requireRole, authorizeRoles } = require("./middleware/auth");
 const authRouter    = require("./routes/auth");
+const adminRouter   = require("./routes/admin");
 
 const app    = express();
 const server = http.createServer(app);
@@ -22,6 +24,8 @@ app.use(express.json());
 app.use((req, _res, next) => { req.io = io; next(); });
 // ─── Auth Routes (public — no token needed) ──────────────────────────────────
 app.use("/api/auth", authRouter);
+// ─── Admin Routes ─────────────────────────────────────────────────────────────
+app.use("/api/admin", adminRouter);
 
 app.use(express.static(path.join(__dirname, "../esp32-frontend"), { index: false }));
 
@@ -197,7 +201,12 @@ app.get("/api/patients", protect, async (req, res) => {
     if (mongoose.connection.readyState !== 1) {
       return res.json(demoPatients());
     }
-    const patients = await Patient.find({}).lean();
+    // Build query — filter by ward if ?ward= param is present
+    const query = {};
+    if (req.query.ward && req.query.ward.trim()) {
+      query.ward = req.query.ward.trim();
+    }
+    const patients = await Patient.find(query).lean();
     if (!patients.length) return res.json([]);
 
     const results = await Promise.all(patients.map(async (p) => {
@@ -268,6 +277,7 @@ app.post("/api/patients", protect, async (req, res) => {
     const allowed = ["name","age","gender","bloodType","weight","height","roomNo","ward","physician","diagnosis","phone","notes"];
     const update  = { deviceId };
     allowed.forEach(k => { if (req.body[k] !== undefined) update[k] = req.body[k]; });
+    if (update.ward) update.ward = update.ward.trim();
     const patient = await Patient.findOneAndUpdate(
       { patient_id },
       update,
@@ -286,6 +296,7 @@ app.patch("/api/patients/:id", protect, async (req, res) => {
     const allowed = ["name","age","gender","bloodType","weight","height","roomNo","ward","physician","diagnosis","phone","notes"];
     const update  = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) update[k] = req.body[k]; });
+    if (update.ward) update.ward = update.ward.trim();
     const patient = await Patient.findOneAndUpdate({ patient_id: req.params.id }, update, { new: true });
     if (!patient) return res.status(404).json({ error: "Patient not found" });
 
@@ -403,6 +414,46 @@ app.delete("/api/patients/:id/profile", protect, requireRole("admin"), async (re
     res.json(updated);
   } catch (err) {
     console.error("[DELETE /api/patients/:id/profile]", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ─── POST /api/patients/:id/viewer-link ───────────────────────────────────────
+// Generate a secure random viewer token and return a shareable URL.
+// Access: doctor and admin only.
+app.post("/api/patients/:id/viewer-link", protect, authorizeRoles("admin", "doctor"), async (req, res) => {
+  try {
+    const patient = await Patient.findOne({ patient_id: req.params.id }).select("+viewerToken");
+    if (!patient) return res.status(404).json({ error: "Patient not found" });
+
+    const token = crypto.randomBytes(32).toString("hex"); // 64-char hex, 256-bit entropy
+    patient.viewerToken = token;
+    patient.viewerTokenCreatedAt = new Date();
+    await patient.save();
+
+    const url = `${req.protocol}://${req.get("host")}/view/${token}`;
+    res.json({ url, token, createdAt: patient.viewerTokenCreatedAt });
+  } catch (err) {
+    console.error("[POST /api/patients/:id/viewer-link]", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ─── DELETE /api/patients/:id/viewer-link ─────────────────────────────────────
+// Revoke the viewer token — any existing link immediately becomes dead.
+// Access: doctor and admin only.
+app.delete("/api/patients/:id/viewer-link", protect, authorizeRoles("admin", "doctor"), async (req, res) => {
+  try {
+    const patient = await Patient.findOne({ patient_id: req.params.id }).select("+viewerToken");
+    if (!patient) return res.status(404).json({ error: "Patient not found" });
+
+    patient.viewerToken = null;
+    patient.viewerTokenCreatedAt = null;
+    await patient.save();
+
+    res.json({ message: "Viewer access revoked." });
+  } catch (err) {
+    console.error("[DELETE /api/patients/:id/viewer-link]", err);
     res.status(500).json({ error: "Server error" });
   }
 });
