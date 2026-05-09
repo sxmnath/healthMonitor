@@ -1,3 +1,4 @@
 .env
+node_modules/
 README-secondary.md
 README.pdf
