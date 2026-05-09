@@ -90,7 +90,11 @@ router.post("/signup", signupRules, async (req, res) => {
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
-    await sendOtpEmail(email, name, otp);
+    // Send OTP — fire-and-forget with error logging so an SMTP failure
+    // never converts into a 500 for the user.
+    sendOtpEmail(email, name, otp).catch(err => {
+      console.error("[POST /auth/signup] sendOtpEmail failed:", err.message);
+    });
 
     res.status(200).json({
       message: "Verification code sent. Please check your email.",
