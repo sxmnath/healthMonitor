@@ -392,7 +392,7 @@
     if (localStorage.getItem("hm_token")) window.location.replace("/");
 
     // ── State ──────────────────────────────────────────────────────────────────
-    var _email = "", _name = "", _resendCountdown = null;
+    var _email = "", _name = "", _password = "", _resendCountdown = null;
 
     // ── Helpers ───────────────────────────────────────────────────────────────
     function show(id)  { document.getElementById(id).style.display = ""; }
@@ -562,8 +562,9 @@
       btn.disabled = true;
       btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending code…';
 
-      _name  = el("name").value.trim();
-      _email = el("email").value.trim();
+      _name     = el("name").value.trim();
+      _email    = el("email").value.trim();
+      _password = el("password").value;
 
       try {
         var res  = await fetch("/api/auth/signup", {
@@ -641,23 +642,16 @@
       el("resendBtn").disabled = true;
       clearOtpError(); clearOtp();
       try {
-        var res  = await fetch("/api/auth/signup", {
+        var res = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: _name, email: _email, password: "placeholder_not_used_on_resend_" }),
+          body: JSON.stringify({ name: _name, email: _email, password: _password }),
         });
-        // Resend uses a fresh OTP — even if the password placeholder fails validation
-        // we still want to resend. Re-POST with the cached password from the form.
         if (!res.ok) {
-          // fallback: re-POST with the original password field value
-          var pw = el("password") ? el("password").value : "";
-          if (!pw) { showOtpError("Session expired. Please go back and sign up again."); return; }
-          var res2 = await fetch("/api/auth/signup", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: _name, email: _email, password: pw }),
-          });
-          if (!res2.ok) { showOtpError("Could not resend. Please go back and try again."); return; }
+          var data = await res.json();
+          showOtpError(data.error || "Could not resend. Please go back and try again.");
+          el("resendBtn").disabled = false;
+          return;
         }
         startResendCooldown();
         digits()[0].focus();
