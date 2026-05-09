@@ -1,9 +1,13 @@
 "use strict";
-const express = require("express");
-const router  = express.Router();
+const express  = require("express");
+const router   = express.Router();
+const crypto   = require("crypto");
+const bcrypt   = require("bcryptjs");
 const { body, validationResult } = require("express-validator");
 
-const User                       = require("../models/User");
+const User          = require("../models/User");
+const PendingSignup = require("../models/PendingSignup");
+const { sendOtpEmail }           = require("../utils/email");
 const { signToken, protect }     = require("../middleware/auth");
 
 // ─── Validation rule sets ─────────────────────────────────────────────────────
@@ -53,11 +57,9 @@ function handleValidation(req, res) {
 
 // ─── POST /auth/signup ────────────────────────────────────────────────────────
 /**
- * Register a new user.
- *
+ * Step 1: Validate fields, hash password, store pending signup, send OTP.
  * Body: { name, email, password }
- *
- * Returns: { user, token }
+ * Returns: { message } — frontend shows the OTP entry screen.
  */
 router.post("/signup", signupRules, async (req, res) => {
   if (handleValidation(req, res)) return;
@@ -65,8 +67,7 @@ router.post("/signup", signupRules, async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // Check for duplicate email before attempting insert (gives a friendlier error
-    // than relying solely on the MongoDB unique index violation)
+    // Reject if email is already a confirmed account
     const existing = await User.findOne({ email });
     if (existing) {
       return res.status(409).json({
@@ -75,34 +76,104 @@ router.post("/signup", signupRules, async (req, res) => {
       });
     }
 
-    const user = await User.create({
-      name,
-      email,
-      password,           // hashed by pre-save hook in User model
-      role: "viewer",  // always viewer — admins promote via admin panel
+    // Hash password now — PendingSignup stores the hash, not plaintext
+    const salt   = await bcrypt.genSalt(12);
+    const hashed = await bcrypt.hash(password, salt);
+
+    // Generate cryptographically random 6-digit OTP
+    const otp = String(crypto.randomInt(100000, 999999));
+
+    // Upsert: if a previous pending signup exists for this email, replace it
+    await PendingSignup.findOneAndUpdate(
+      { email },
+      { name, email, password: hashed, otp, attempts: 0, createdAt: new Date() },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    await sendOtpEmail(email, name, otp);
+
+    res.status(200).json({
+      message: "Verification code sent. Please check your email.",
     });
+
+  } catch (err) {
+    console.error("[POST /auth/signup]", err);
+    res.status(500).json({ error: "Server error. Please try again." });
+  }
+});
+
+// ─── POST /auth/verify-otp ────────────────────────────────────────────────────
+/**
+ * Step 2: Verify the OTP, create the User record, issue a JWT.
+ * Body: { email, otp }
+ * Returns: { user, token }
+ */
+router.post("/verify-otp", [
+  body("email").trim().isEmail().normalizeEmail(),
+  body("otp").trim().notEmpty().withMessage("Verification code is required"),
+], async (req, res) => {
+  if (handleValidation(req, res)) return;
+
+  try {
+    const { email, otp } = req.body;
+
+    const pending = await PendingSignup.findOne({ email });
+
+    if (!pending) {
+      return res.status(404).json({
+        error: "No pending signup for this email. Please start over.",
+        expired: true,
+      });
+    }
+
+    // Increment attempt counter before checking
+    pending.attempts += 1;
+    await pending.save();
+
+    if (pending.attempts > 5) {
+      await PendingSignup.deleteOne({ email });
+      return res.status(429).json({
+        error: "Too many incorrect attempts. Please sign up again.",
+        expired: true,
+      });
+    }
+
+    if (pending.otp !== otp.trim()) {
+      const left = 5 - pending.attempts;
+      return res.status(422).json({
+        error: `Incorrect code. ${left > 0 ? `${left} attempt${left === 1 ? "" : "s"} remaining.` : "No attempts remaining."}`,
+      });
+    }
+
+    // OTP correct — create the confirmed user
+    const user = await User.create({
+      name:     pending.name,
+      email:    pending.email,
+      password: pending.password,  // already hashed
+      role:     "viewer",
+    });
+
+    await PendingSignup.deleteOne({ email });
+
+    // Record first login time without triggering pre-save hash
+    await User.findByIdAndUpdate(user._id, { lastLogin: new Date() });
 
     const token = signToken(user);
 
-    // Update lastLogin on first registration
-    user.lastLogin = new Date();
-    await user.save();
-
     res.status(201).json({
-      message: "Account created successfully",
+      message: "Account verified and created successfully.",
       user:    user.toPublicJSON(),
       token,
     });
 
   } catch (err) {
-    // Catch MongoDB duplicate key error as a safety net (race condition)
     if (err.code === 11000) {
       return res.status(409).json({
         error:  "Email already registered",
         fields: { email: "An account with this email address already exists" },
       });
     }
-    console.error("[POST /auth/signup]", err);
+    console.error("[POST /auth/verify-otp]", err);
     res.status(500).json({ error: "Server error. Please try again." });
   }
 });

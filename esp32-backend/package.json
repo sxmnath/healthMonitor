@@ -1,7 +1,7 @@
 {
   "name": "esp32-backend",
   "version": "2.0.0",
-  "description": "HealthMonitor backend \u2014 ESP32 vitals ingestion, patient management, authentication",
+  "description": "HealthMonitor backend — ESP32 vitals ingestion, patient management, authentication",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -16,12 +16,13 @@
     "cors": "^2.8.5",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
+    "express-rate-limit": "^7.5.0",
     "express-validator": "^7.2.1",
+    "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^9.0.1",
-    "socket.io": "^4.8.3",
-    "helmet": "^8.0.0",
-    "express-rate-limit": "^7.5.0"
+    "nodemailer": "^8.0.7",
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"

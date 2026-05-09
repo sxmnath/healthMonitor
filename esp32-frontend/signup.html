@@ -206,6 +206,39 @@
     .form-footer a { color: var(--blue); font-weight: 600; text-decoration: none; }
     .form-footer a:hover { text-decoration: underline; }
 
+    /* OTP digits */
+    .otp-wrap {
+      display: flex; gap: 10px; justify-content: center; margin: 24px 0 8px;
+    }
+    .otp-digit {
+      width: 48px; height: 58px;
+      border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+      background: var(--surface); font-family: 'DM Mono', monospace;
+      font-size: 1.6rem; font-weight: 500; color: var(--text-primary);
+      text-align: center; outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      -moz-appearance: textfield;
+    }
+    .otp-digit::-webkit-inner-spin-button,
+    .otp-digit::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    .otp-digit:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-light); }
+    .otp-digit.error { border-color: var(--critical); box-shadow: 0 0 0 3px var(--critical-light); }
+
+    .otp-hint { font-size: 0.82rem; color: var(--text-muted); text-align: center; margin-bottom: 6px; }
+    .otp-resend { text-align: center; font-size: 0.82rem; color: var(--text-muted); margin-top: 14px; }
+    .otp-resend button {
+      background: none; border: none; color: var(--blue); font-weight: 600;
+      cursor: pointer; font-family: var(--font); font-size: 0.82rem; padding: 0;
+    }
+    .otp-resend button:hover { text-decoration: underline; }
+    .otp-resend button:disabled { opacity: 0.45; cursor: default; text-decoration: none; }
+    .otp-back {
+      background: none; border: none; color: var(--text-muted); font-family: var(--font);
+      font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; gap: 5px;
+      margin-bottom: 18px; padding: 0; transition: color 0.15s;
+    }
+    .otp-back:hover { color: var(--text-primary); }
+
     @media (max-width: 700px) {
       .auth-brand  { display: none; }
       .auth-form-panel { padding: 32px 22px; }
@@ -230,244 +263,407 @@
       <h1 class="brand-headline">Get started in seconds.</h1>
       <p class="brand-sub">Create your account and start monitoring patients in real time.</p>
       <div class="brand-steps">
-        <div class="brand-step"><div class="step-num">1</div><div class="step-text">Create your account with name and email</div></div>
-        <div class="brand-step"><div class="step-num">2</div><div class="step-text">You're logged in immediately — no waiting</div></div>
-        <div class="brand-step"><div class="step-num">3</div><div class="step-text">Connect devices and start monitoring</div></div>
+        <div class="brand-step"><div class="step-num">1</div><div class="step-text">Enter your name, email and password</div></div>
+        <div class="brand-step"><div class="step-num">2</div><div class="step-text">Check your email for a 6-digit code</div></div>
+        <div class="brand-step"><div class="step-num">3</div><div class="step-text">Enter the code to verify and sign in</div></div>
       </div>
     </div>
 
     <!-- Right form -->
     <div class="auth-form-panel">
-      <h2 class="form-title">Create your account</h2>
-      <p class="form-subtitle">All fields are required unless marked optional</p>
 
-      <div class="error-banner"   id="errorBanner">
-        <i class="fa-solid fa-circle-exclamation"></i>
-        <span id="errorMsg"></span>
-      </div>
-      <div class="success-banner" id="successBanner">
-        <i class="fa-solid fa-circle-check"></i>
-        <span>Account created! Redirecting…</span>
-      </div>
+      <!-- ── Step 1: Signup form ─────────────────────────────────── -->
+      <div id="stepSignup">
+        <h2 class="form-title">Create your account</h2>
+        <p class="form-subtitle">All fields are required unless marked optional</p>
 
-      <form id="signupForm" novalidate>
+        <div class="error-banner"   id="errorBanner">
+          <i class="fa-solid fa-circle-exclamation"></i>
+          <span id="errorMsg"></span>
+        </div>
+        <div class="success-banner" id="successBanner">
+          <i class="fa-solid fa-circle-check"></i>
+          <span>Account created! Redirecting…</span>
+        </div>
 
-        <!-- Name + Email row -->
-        <div class="field-row">
-          <div class="field-group">
-            <label for="name">Full Name</label>
-            <div class="input-wrap">
-              <i class="fa-solid fa-user"></i>
-              <input type="text" id="name" name="name" placeholder="Dr. Jane Smith" autocomplete="name" required />
+        <form id="signupForm" novalidate>
+          <div class="field-row">
+            <div class="field-group">
+              <label for="name">Full Name</label>
+              <div class="input-wrap">
+                <i class="fa-solid fa-user"></i>
+                <input type="text" id="name" name="name" placeholder="Dr. Jane Smith" autocomplete="name" required />
+              </div>
+              <span class="field-error" id="nameErr"></span>
             </div>
-            <span class="field-error" id="nameErr"></span>
+            <div class="field-group">
+              <label for="email">Email Address</label>
+              <div class="input-wrap">
+                <i class="fa-regular fa-envelope"></i>
+                <input type="email" id="email" name="email" placeholder="you@hospital.com" autocomplete="email" required />
+              </div>
+              <span class="field-error" id="emailErr"></span>
+            </div>
           </div>
 
           <div class="field-group">
-            <label for="email">Email Address</label>
+            <label for="password">Password</label>
             <div class="input-wrap">
-              <i class="fa-regular fa-envelope"></i>
-              <input type="email" id="email" name="email" placeholder="you@hospital.com" autocomplete="email" required />
+              <i class="fa-solid fa-lock"></i>
+              <input type="password" id="password" name="password" placeholder="Min. 8 characters" autocomplete="new-password" required />
+              <button type="button" class="pw-toggle" id="pw1Toggle" tabindex="-1">
+                <i class="fa-regular fa-eye" id="pw1Icon"></i>
+              </button>
             </div>
-            <span class="field-error" id="emailErr"></span>
+            <div class="pw-strength" id="pwStrength" style="display:none">
+              <div class="pw-strength-bar"><div class="pw-strength-fill" id="pwStrengthFill"></div></div>
+              <div class="pw-strength-label" id="pwStrengthLabel"></div>
+            </div>
+            <span class="field-error" id="passwordErr"></span>
           </div>
+
+          <div class="field-group">
+            <label for="confirm">Confirm Password</label>
+            <div class="input-wrap">
+              <i class="fa-solid fa-lock"></i>
+              <input type="password" id="confirm" name="confirm" placeholder="Repeat password" autocomplete="new-password" required />
+              <button type="button" class="pw-toggle" id="pw2Toggle" tabindex="-1">
+                <i class="fa-regular fa-eye" id="pw2Icon"></i>
+              </button>
+            </div>
+            <span class="field-error" id="confirmErr"></span>
+          </div>
+
+          <button type="submit" class="btn-primary" id="signupBtn">
+            <i class="fa-solid fa-paper-plane"></i>
+            Send Verification Code
+          </button>
+        </form>
+
+        <div class="form-footer">
+          Already have an account? <a href="/login">Sign in</a>
+        </div>
+      </div>
+
+      <!-- ── Step 2: OTP entry ───────────────────────────────────── -->
+      <div id="stepOtp" style="display:none">
+        <button class="otp-back" id="backBtn">
+          <i class="fa-solid fa-arrow-left"></i> Back
+        </button>
+        <h2 class="form-title">Check your email</h2>
+        <p class="form-subtitle" id="otpSubtitle">We sent a 6-digit code to your email.</p>
+
+        <div class="error-banner" id="otpErrorBanner">
+          <i class="fa-solid fa-circle-exclamation"></i>
+          <span id="otpErrorMsg"></span>
         </div>
 
-        <!-- Password -->
-        <div class="field-group">
-          <label for="password">Password</label>
-          <div class="input-wrap">
-            <i class="fa-solid fa-lock"></i>
-            <input type="password" id="password" name="password" placeholder="Min. 8 characters" autocomplete="new-password" required />
-            <button type="button" class="pw-toggle" id="pw1Toggle" tabindex="-1">
-              <i class="fa-regular fa-eye" id="pw1Icon"></i>
-            </button>
-          </div>
-          <!-- Strength bar -->
-          <div class="pw-strength" id="pwStrength" style="display:none">
-            <div class="pw-strength-bar"><div class="pw-strength-fill" id="pwStrengthFill"></div></div>
-            <div class="pw-strength-label" id="pwStrengthLabel"></div>
-          </div>
-          <span class="field-error" id="passwordErr"></span>
+        <div class="otp-wrap" id="otpWrap">
+          <input class="otp-digit" type="number" maxlength="1" min="0" max="9" inputmode="numeric" />
+          <input class="otp-digit" type="number" maxlength="1" min="0" max="9" inputmode="numeric" />
+          <input class="otp-digit" type="number" maxlength="1" min="0" max="9" inputmode="numeric" />
+          <input class="otp-digit" type="number" maxlength="1" min="0" max="9" inputmode="numeric" />
+          <input class="otp-digit" type="number" maxlength="1" min="0" max="9" inputmode="numeric" />
+          <input class="otp-digit" type="number" maxlength="1" min="0" max="9" inputmode="numeric" />
         </div>
+        <p class="otp-hint">Enter the 6-digit code — it expires in 10 minutes</p>
 
-        <!-- Confirm Password -->
-        <div class="field-group">
-          <label for="confirm">Confirm Password</label>
-          <div class="input-wrap">
-            <i class="fa-solid fa-lock"></i>
-            <input type="password" id="confirm" name="confirm" placeholder="Repeat password" autocomplete="new-password" required />
-            <button type="button" class="pw-toggle" id="pw2Toggle" tabindex="-1">
-              <i class="fa-regular fa-eye" id="pw2Icon"></i>
-            </button>
-          </div>
-          <span class="field-error" id="confirmErr"></span>
-        </div>
-
-        <button type="submit" class="btn-primary" id="signupBtn">
-          <i class="fa-solid fa-user-plus"></i>
-          Create Account
+        <button class="btn-primary" id="verifyBtn">
+          <i class="fa-solid fa-circle-check"></i>
+          Verify &amp; Create Account
         </button>
 
-      </form>
+        <div class="otp-resend">
+          Didn't receive it?
+          <button id="resendBtn">Resend code</button>
+          <span id="resendTimer"></span>
+        </div>
 
-      <div class="form-footer">
-        Already have an account? <a href="/login">Sign in</a>
+        <div class="success-banner" id="otpSuccessBanner" style="margin-top:14px">
+          <i class="fa-solid fa-circle-check"></i>
+          <span>Account verified! Redirecting…</span>
+        </div>
       </div>
-    </div>
 
+    </div>
   </div>
 
   <script>
-    // ── Redirect if already logged in ─────────────────────────────────────────
-    if (localStorage.getItem("hm_token")) {
-      window.location.replace("/");
-    }
+    if (localStorage.getItem("hm_token")) window.location.replace("/");
 
-    // ── Password toggles ───────────────────────────────────────────────────────
+    // ── State ──────────────────────────────────────────────────────────────────
+    var _email = "", _name = "", _resendCountdown = null;
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    function show(id)  { document.getElementById(id).style.display = ""; }
+    function hide(id)  { document.getElementById(id).style.display = "none"; }
+    function el(id)    { return document.getElementById(id); }
+
+    function setErr(fieldId, errId, msg) {
+      var input = el(fieldId), err = el(errId);
+      if (!input || !err) return;
+      if (msg) { input.classList.add("error"); err.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> ' + msg; }
+      else      { input.classList.remove("error"); err.textContent = ""; }
+    }
+    function clearErrors() {
+      ["name","email","password","confirm"].forEach(function(id) {
+        var el2 = el(id); if (el2) el2.classList.remove("error");
+      });
+      ["nameErr","emailErr","passwordErr","confirmErr"].forEach(function(id) {
+        var el2 = el(id); if (el2) el2.textContent = "";
+      });
+      el("errorBanner").classList.remove("show");
+    }
+    function showBanner(msg) {
+      el("errorMsg").textContent = msg;
+      el("errorBanner").classList.add("show");
+    }
+    function showOtpError(msg) {
+      el("otpErrorMsg").textContent = msg;
+      el("otpErrorBanner").classList.add("show");
+      digits().forEach(function(d) { d.classList.add("error"); });
+    }
+    function clearOtpError() {
+      el("otpErrorBanner").classList.remove("show");
+      digits().forEach(function(d) { d.classList.remove("error"); });
+    }
+    function digits() { return Array.from(document.querySelectorAll(".otp-digit")); }
+    function getOtp()  { return digits().map(function(d) { return d.value; }).join(""); }
+    function clearOtp(){ digits().forEach(function(d) { d.value = ""; }); }
+
+    // ── Password toggles ──────────────────────────────────────────────────────
     function makeToggle(btnId, inputId, iconId) {
-      document.getElementById(btnId).addEventListener("click", () => {
-        const input = document.getElementById(inputId);
-        const icon  = document.getElementById(iconId);
-        const show  = input.type === "password";
-        input.type  = show ? "text" : "password";
-        icon.className = show ? "fa-regular fa-eye-slash" : "fa-regular fa-eye";
+      el(btnId).addEventListener("click", function() {
+        var input = el(inputId), icon = el(iconId), show2 = input.type === "password";
+        input.type = show2 ? "text" : "password";
+        icon.className = show2 ? "fa-regular fa-eye-slash" : "fa-regular fa-eye";
       });
     }
-    makeToggle("pw1Toggle", "password", "pw1Icon");
-    makeToggle("pw2Toggle", "confirm",  "pw2Icon");
+    makeToggle("pw1Toggle","password","pw1Icon");
+    makeToggle("pw2Toggle","confirm","pw2Icon");
 
-    // ── Password strength meter ────────────────────────────────────────────────
-    document.getElementById("password").addEventListener("input", function () {
-      const v   = this.value;
-      const bar = document.getElementById("pwStrength");
-      const fill= document.getElementById("pwStrengthFill");
-      const lbl = document.getElementById("pwStrengthLabel");
+    // ── Password strength ─────────────────────────────────────────────────────
+    el("password").addEventListener("input", function() {
+      var v = this.value, bar = el("pwStrength"), fill = el("pwStrengthFill"), lbl = el("pwStrengthLabel");
       if (!v) { bar.style.display = "none"; return; }
       bar.style.display = "block";
-
-      let score = 0;
-      if (v.length >= 8)                     score++;
-      if (v.length >= 12)                    score++;
-      if (/[A-Z]/.test(v))                   score++;
-      if (/[0-9]/.test(v))                   score++;
-      if (/[^A-Za-z0-9]/.test(v))            score++;
-
-      const levels = [
-        { pct: "20%", color: "#e05c5c", label: "Too weak"  },
-        { pct: "40%", color: "#e09a3c", label: "Weak"      },
-        { pct: "60%", color: "#e0c83c", label: "Fair"      },
-        { pct: "80%", color: "#3dab6e", label: "Good"      },
-        { pct: "100%",color: "#3dab6e", label: "Strong"    },
+      var score = 0;
+      if (v.length >= 8)            score++;
+      if (v.length >= 12)           score++;
+      if (/[A-Z]/.test(v))          score++;
+      if (/[0-9]/.test(v))          score++;
+      if (/[^A-Za-z0-9]/.test(v))   score++;
+      var levels = [
+        { pct:"20%", color:"#e05c5c", label:"Too weak" },
+        { pct:"40%", color:"#e09a3c", label:"Weak" },
+        { pct:"60%", color:"#e0c83c", label:"Fair" },
+        { pct:"80%", color:"#3dab6e", label:"Good" },
+        { pct:"100%",color:"#3dab6e", label:"Strong" },
       ];
-      const l = levels[Math.min(score, 4)];
-      fill.style.width      = l.pct;
-      fill.style.background = l.color;
-      lbl.style.color       = l.color;
-      lbl.textContent       = l.label;
+      var l = levels[Math.min(score, 4)];
+      fill.style.width = l.pct; fill.style.background = l.color;
+      lbl.style.color = l.color; lbl.textContent = l.label;
     });
 
-    // ── Validation helpers ────────────────────────────────────────────────────
-    function setErr(fieldId, errId, msg) {
-      const input = document.getElementById(fieldId);
-      const err   = document.getElementById(errId);
-      if (msg) {
-        input.classList.add("error");
-        err.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> ${msg}`;
-      } else {
-        input.classList.remove("error");
-        err.textContent = "";
-      }
-    }
-
-    function clearErrors() {
-      ["name","email","password","confirm"].forEach(id => {
-        document.getElementById(id).classList.remove("error");
-      });
-      ["nameErr","emailErr","passwordErr","confirmErr"].forEach(id => {
-        document.getElementById(id).textContent = "";
-      });
-      document.getElementById("errorBanner").classList.remove("show");
-    }
-
-    function showBanner(msg) {
-      document.getElementById("errorMsg").textContent = msg;
-      document.getElementById("errorBanner").classList.add("show");
-    }
-
+    // ── Client-side form validation ───────────────────────────────────────────
     function validate() {
-      let ok = true;
-      const name     = document.getElementById("name").value.trim();
-      const email    = document.getElementById("email").value.trim();
-      const password = document.getElementById("password").value;
-      const confirm  = document.getElementById("confirm").value;
+      var ok = true;
+      var name     = el("name").value.trim();
+      var email    = el("email").value.trim();
+      var password = el("password").value;
+      var confirm  = el("confirm").value;
 
-      if (!name || name.length < 2) {
-        setErr("name", "nameErr", "Name must be at least 2 characters"); ok = false;
-      } else { setErr("name", "nameErr", ""); }
+      if (!name || name.length < 2)  { setErr("name","nameErr","Name must be at least 2 characters"); ok = false; }
+      else                            { setErr("name","nameErr",""); }
 
-      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        setErr("email", "emailErr", "Enter a valid email address"); ok = false;
-      } else { setErr("email", "emailErr", ""); }
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setErr("email","emailErr","Enter a valid email address"); ok = false; }
+      else { setErr("email","emailErr",""); }
 
-      if (!password || password.length < 8) {
-        setErr("password", "passwordErr", "Password must be at least 8 characters"); ok = false;
-      } else if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) {
-        setErr("password", "passwordErr", "Must contain at least one letter and one number"); ok = false;
-      } else { setErr("password", "passwordErr", ""); }
+      if (!password || password.length < 8)  { setErr("password","passwordErr","Password must be at least 8 characters"); ok = false; }
+      else if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) { setErr("password","passwordErr","Must contain a letter and a number"); ok = false; }
+      else { setErr("password","passwordErr",""); }
 
-      if (!confirm) {
-        setErr("confirm", "confirmErr", "Please confirm your password"); ok = false;
-      } else if (confirm !== password) {
-        setErr("confirm", "confirmErr", "Passwords do not match"); ok = false;
-      } else { setErr("confirm", "confirmErr", ""); }
+      if (!confirm)           { setErr("confirm","confirmErr","Please confirm your password"); ok = false; }
+      else if (confirm !== password) { setErr("confirm","confirmErr","Passwords do not match"); ok = false; }
+      else { setErr("confirm","confirmErr",""); }
 
       return ok;
     }
 
-    // ── Submit ────────────────────────────────────────────────────────────────
-    document.getElementById("signupForm").addEventListener("submit", async (e) => {
+    // ── Resend countdown (60s cooldown) ───────────────────────────────────────
+    function startResendCooldown() {
+      var resend = el("resendBtn"), timer = el("resendTimer");
+      var secs = 60;
+      resend.disabled = true;
+      clearInterval(_resendCountdown);
+      _resendCountdown = setInterval(function() {
+        secs--;
+        timer.textContent = " (" + secs + "s)";
+        if (secs <= 0) {
+          clearInterval(_resendCountdown);
+          resend.disabled = false;
+          timer.textContent = "";
+        }
+      }, 1000);
+    }
+
+    // ── Switch to OTP step ────────────────────────────────────────────────────
+    function showOtpStep() {
+      hide("stepSignup");
+      show("stepOtp");
+      el("otpSubtitle").textContent = "We sent a 6-digit code to " + _email + ".";
+      clearOtp(); clearOtpError();
+      startResendCooldown();
+      // Auto-focus first digit
+      var first = digits()[0]; if (first) setTimeout(function() { first.focus(); }, 80);
+    }
+
+    // ── OTP digit keyboard UX ─────────────────────────────────────────────────
+    (function wireDigits() {
+      var ds = digits();
+      ds.forEach(function(d, i) {
+        // On input: advance to next, clear error state
+        d.addEventListener("input", function() {
+          clearOtpError();
+          // strip non-digits, keep only last char
+          var val = this.value.replace(/\D/g,"");
+          this.value = val ? val[val.length-1] : "";
+          if (this.value && i < ds.length - 1) ds[i+1].focus();
+          // auto-submit when all filled
+          if (getOtp().length === 6) el("verifyBtn").click();
+        });
+        // On keydown: backspace goes back
+        d.addEventListener("keydown", function(e) {
+          if (e.key === "Backspace" && !this.value && i > 0) {
+            ds[i-1].focus(); ds[i-1].value = "";
+          }
+        });
+        // On paste: spread digits across boxes
+        d.addEventListener("paste", function(e) {
+          e.preventDefault();
+          var text = (e.clipboardData || window.clipboardData).getData("text").replace(/\D/g,"");
+          text.split("").slice(0,6).forEach(function(ch, j) {
+            if (ds[i+j]) ds[i+j].value = ch;
+          });
+          var next = Math.min(i + text.length, ds.length - 1);
+          ds[next].focus();
+          if (getOtp().length === 6) setTimeout(function(){ el("verifyBtn").click(); }, 80);
+        });
+      });
+    })();
+
+    // ── Step 1 submit ─────────────────────────────────────────────────────────
+    el("signupForm").addEventListener("submit", async function(e) {
       e.preventDefault();
       clearErrors();
       if (!validate()) return;
 
-      const btn = document.getElementById("signupBtn");
+      var btn = el("signupBtn");
       btn.disabled = true;
-      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Creating account…';
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending code…';
+
+      _name  = el("name").value.trim();
+      _email = el("email").value.trim();
 
       try {
-        const res  = await fetch("/api/auth/signup", {
-          method:  "POST",
+        var res  = await fetch("/api/auth/signup", {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({
-            name:     document.getElementById("name").value.trim(),
-            email:    document.getElementById("email").value.trim(),
-            password: document.getElementById("password").value,
-          }),
+          body: JSON.stringify({ name: _name, email: _email, password: el("password").value }),
         });
-
-        const data = await res.json();
+        var data = await res.json();
 
         if (res.ok) {
-          // Auto-login: store token and redirect
-          localStorage.setItem("hm_token", data.token);
-          document.getElementById("successBanner").classList.add("show");
-          setTimeout(() => window.location.replace("/"), 900);
+          showOtpStep();
         } else if (res.status === 422 && data.fields) {
-          if (data.fields.name)     setErr("name",     "nameErr",     data.fields.name);
-          if (data.fields.email)    setErr("email",    "emailErr",    data.fields.email);
-          if (data.fields.password) setErr("password", "passwordErr", data.fields.password);
+          if (data.fields.name)     setErr("name","nameErr",data.fields.name);
+          if (data.fields.email)    setErr("email","emailErr",data.fields.email);
+          if (data.fields.password) setErr("password","passwordErr",data.fields.password);
         } else if (res.status === 409) {
-          // Duplicate email
-          setErr("email", "emailErr", "An account with this email already exists");
+          setErr("email","emailErr","An account with this email already exists");
         } else {
           showBanner(data.error || "Something went wrong. Please try again.");
         }
-      } catch {
+      } catch(_) {
         showBanner("Cannot reach the server. Check your connection.");
       } finally {
         btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Create Account';
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Verification Code';
+      }
+    });
+
+    // ── Back button ───────────────────────────────────────────────────────────
+    el("backBtn").addEventListener("click", function() {
+      hide("stepOtp"); show("stepSignup");
+      clearInterval(_resendCountdown);
+    });
+
+    // ── Step 2 verify ─────────────────────────────────────────────────────────
+    el("verifyBtn").addEventListener("click", async function() {
+      var otp = getOtp();
+      if (otp.length < 6) { showOtpError("Please enter all 6 digits."); return; }
+
+      var btn = el("verifyBtn");
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying…';
+      clearOtpError();
+
+      try {
+        var res  = await fetch("/api/auth/verify-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: _email, otp }),
+        });
+        var data = await res.json();
+
+        if (res.ok) {
+          localStorage.setItem("hm_token", data.token);
+          el("otpSuccessBanner").classList.add("show");
+          setTimeout(function() { window.location.replace("/"); }, 900);
+        } else if (data.expired) {
+          // Show error then kick back to step 1 after 2s
+          showOtpError(data.error);
+          setTimeout(function() { hide("stepOtp"); show("stepSignup"); clearOtp(); }, 2500);
+        } else {
+          showOtpError(data.error || "Incorrect code. Please try again.");
+          clearOtp(); digits()[0].focus();
+        }
+      } catch(_) {
+        showOtpError("Cannot reach the server. Check your connection.");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-circle-check"></i> Verify &amp; Create Account';
+      }
+    });
+
+    // ── Resend ────────────────────────────────────────────────────────────────
+    el("resendBtn").addEventListener("click", async function() {
+      el("resendBtn").disabled = true;
+      clearOtpError(); clearOtp();
+      try {
+        var res  = await fetch("/api/auth/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: _name, email: _email, password: "placeholder_not_used_on_resend_" }),
+        });
+        // Resend uses a fresh OTP — even if the password placeholder fails validation
+        // we still want to resend. Re-POST with the cached password from the form.
+        if (!res.ok) {
+          // fallback: re-POST with the original password field value
+          var pw = el("password") ? el("password").value : "";
+          if (!pw) { showOtpError("Session expired. Please go back and sign up again."); return; }
+          var res2 = await fetch("/api/auth/signup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: _name, email: _email, password: pw }),
+          });
+          if (!res2.ok) { showOtpError("Could not resend. Please go back and try again."); return; }
+        }
+        startResendCooldown();
+        digits()[0].focus();
+      } catch(_) {
+        showOtpError("Cannot reach the server.");
+        el("resendBtn").disabled = false;
       }
     });
   </script>
