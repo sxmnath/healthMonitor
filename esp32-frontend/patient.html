@@ -163,7 +163,7 @@
               <div class="vc-header">
                 <div class="vc-icon vc-icon-hr"><i class="fa-solid fa-heart-pulse"></i></div>
                 <div class="vc-label-group">
-                  <span class="vc-name">Heart Rate</span>
+                  <span class="vc-name">Heart Rate <span class="vc-source-tag">ECG</span></span>
                   <span class="vc-status" id="status-hr">—</span>
                 </div>
               </div>
@@ -209,7 +209,7 @@
 
           </div>
 
-          <!-- Motion & ECG cards (Part 6) -->
+          <!-- Motion card (Part 6) -->
           <div class="vitals-grid vitals-grid-secondary">
 
             <div class="vital-card" id="card-activity">
@@ -235,22 +235,6 @@
               </div>
             </div>
 
-            <div class="vital-card" id="card-ecg">
-              <div class="vc-header">
-                <div class="vc-icon vc-icon-ecg"><i class="fa-solid fa-wave-square"></i></div>
-                <div class="vc-label-group">
-                  <span class="vc-name">ECG Heart Rate</span>
-                  <span class="vc-status" id="status-ecg">—</span>
-                </div>
-              </div>
-              <div class="vc-value-row">
-                <span class="vc-value" id="ecgHr">--</span>
-                <span class="vc-unit">bpm</span>
-              </div>
-              <div class="vc-bar-wrap"><div class="vc-bar vc-bar-ecg" id="bar-ecg"></div></div>
-              <div class="vc-peak-row"><span class="vc-peak-label">Peak</span><span id="peak-ecg" class="vc-peak-val">--</span></div>
-            </div>
-
           </div>
 
           <!-- Charts -->
@@ -272,7 +256,7 @@
             <div class="chart-card chart-hr">
               <div class="chart-label">
                 <span class="chart-dot" id="hrChartDot" style="background:#5b8dee"></span>
-                <span class="chart-name">Heart Rate</span>
+                <span class="chart-name">Heart Rate <span class="vc-source-tag">ECG</span></span>
                 <span class="chart-unit">beats per minute (bpm)</span>
               </div>
               <div class="chart-wrap"><canvas id="hrChart"></canvas></div>
@@ -294,15 +278,6 @@
                 <span class="chart-unit">degrees Fahrenheit (°F)</span>
               </div>
               <div class="chart-wrap"><canvas id="tempChart"></canvas></div>
-            </div>
-
-            <div class="chart-card chart-ecg">
-              <div class="chart-label">
-                <span class="chart-dot" style="background:#e8547a"></span>
-                <span class="chart-name">ECG Heart Rate</span>
-                <span class="chart-unit">beats per minute (bpm)</span>
-              </div>
-              <div class="chart-wrap"><canvas id="ecgChart"></canvas></div>
             </div>
 
           </div>
