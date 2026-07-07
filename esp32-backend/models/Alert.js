@@ -31,6 +31,11 @@ const AlertSchema = new mongoose.Schema(
         "temp_low",       // temperature < 96.8 °F (36.0 °C)
         "sensor_off",     // SpO₂ sensor disconnected (spo2 === -1)
         "multi_critical", // two or more vitals simultaneously critical
+        // ── ECG / Motion alert types (Part 3 addition) ──────────────────────
+        "ecg_leads_off",           // AD8232 electrodes not making contact (ecgHeartRate === -1)
+        "motion_fall_risk",        // sudden high-g spike — potential fall detected
+        "prolonged_immobility",    // no movement detected for extended period (pressure sore risk)
+        "exertional_desaturation", // SpO₂ drops during high activity (activityScore > 70)
       ],
     },
 

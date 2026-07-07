@@ -10,7 +10,7 @@ const API = PAGE_PATIENT_ID
     : `/api/dashboard?deviceId=${encodeURIComponent(PAGE_PATIENT_ID)}`
   : "/api/dashboard";
 
-let hrChart, spo2Chart, tempChart;
+let hrChart, spo2Chart, tempChart, ecgChart;
 let currentFilter    = "1h";
 let currentPatientId = PAGE_PATIENT_ID;
 let currentDeviceId  = null;
@@ -21,7 +21,7 @@ let currentDeviceId  = null;
 // UI doesn't jump on individual WebSocket frames before they hit the DB.
 const MA_WIN = 3;
 const hrBuf = [], spo2Buf = [], tempBuf = [];
-let peakHr = null, minSpo2 = null, peakTempF = null;
+let peakHr = null, minSpo2 = null, peakTempF = null, peakEcg = null;
 
 function clientSmooth(buf, val) {
   buf.push(val);
@@ -35,6 +35,9 @@ const AI_NOTES = {
   "Fever risk":               "High temperature with increased heart rate suggests fever.",
   "Respiratory concern":      "Low oxygen saturation may indicate breathing issues.",
   "SpO₂ sensor disconnected": "Blood oxygen sensor is not connected to the device.",
+  "Elevated activity":        "High movement combined with an elevated heart rate — likely physical exertion, not distress.",
+  "Exertional desaturation":  "Oxygen saturation dropped during a period of high activity — worth monitoring closely.",
+  "Prolonged immobility":     "No movement detected while lying down — may indicate pressure injury risk.",
   "Normal":                   "All vitals are within healthy ranges.",
 };
 
@@ -166,12 +169,84 @@ function renderVitals(raw, time) {
     if (el) el.innerText = `Last updated: ${t}`;
   });
 
+  // ── Activity & ECG cards (Part 7) ────────────────────────────────────────
+  renderActivity(raw.activityScore, raw.posture, raw.motionDetected);
+  renderEcg(raw.ecgHeartRate);
+
   // Live chart update
   const chartLabel = new Date(time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   updateLiveCharts(chartLabel, hr, spo2v === -1 ? null : spo2v, tempF, raw.isPeak);
-  syncChartColors(hr, spo2v, tempF);
+  syncChartColors(hr, spo2v, tempF, raw.ecgHeartRate);
 
   generateAlerts({ heartRate: hr, spo2: spo2v, temperatureF: tempF });
+}
+
+// ── Activity card ──────────────────────────────────────────────────────────
+// posture icons: upright → walking figure, lateral → seated/side figure,
+// supine → bed icon, unknown → question mark (MPU6050 not connected/no data)
+function postureIconClass(posture) {
+  if (posture === "supine")  return "fa-bed";
+  if (posture === "lateral") return "fa-person";
+  if (posture === "upright") return "fa-person-walking";
+  return "fa-circle-question";
+}
+
+function renderActivity(activityScore, posture, motionDetected) {
+  if (activityScore == null) return;   // MPU6050 not wired yet on this node — leave placeholders
+
+  const score = Math.round(activityScore);
+  const card  = document.getElementById("card-activity");
+  const valEl = document.getElementById("activityScore");
+  const statEl = document.getElementById("status-activity");
+  const bar   = document.getElementById("bar-activity");
+
+  let level, text, icon;
+  if (score > 70)      { level = "warning"; text = "High Activity"; icon = "fa-person-running"; }
+  else if (score > 30) { level = "normal";  text = "Active";        icon = "fa-person-walking"; }
+  else                 { level = "normal";  text = "Resting";       icon = "fa-bed"; }
+
+  if (valEl)  valEl.innerText = score;
+  if (statEl) { statEl.innerHTML = `<i class="fa-solid ${icon}"></i> ${text}`; statEl.className = `vc-status status-${level}`; }
+  if (card)   card.className  = `vital-card card-${level}`;
+  if (bar)    bar.style.width = `${Math.min(100, score)}%`;
+
+  const postureIcon = document.getElementById("postureIcon");
+  const postureText = document.getElementById("postureText");
+  const motionDot   = document.getElementById("motionDot");
+  if (postureIcon) postureIcon.className = `fa-solid ${postureIconClass(posture)}`;
+  if (postureText) postureText.innerText = posture && posture !== "unknown"
+    ? posture.charAt(0).toUpperCase() + posture.slice(1)
+    : "Unknown";
+  if (motionDot) motionDot.className = `motion-dot ${motionDetected ? "motion-active" : "motion-still"}`;
+}
+
+// ── ECG card ───────────────────────────────────────────────────────────────
+// ecgHeartRate === -1 means leads are off — mirrors the SpO2 "disconnected" pattern
+function renderEcg(ecgHeartRate) {
+  if (ecgHeartRate == null) return;   // AD8232 not wired yet on this node
+
+  const card   = document.getElementById("card-ecg");
+  const valEl  = document.getElementById("ecgHr");
+  const statEl = document.getElementById("status-ecg");
+  const bar    = document.getElementById("bar-ecg");
+  const pk     = document.getElementById("peak-ecg");
+
+  if (ecgHeartRate === -1) {
+    if (valEl)  valEl.innerText  = "—";
+    if (statEl) { statEl.innerHTML = '<i class="fa-solid fa-hand-pointer"></i> Leads off — attach electrodes'; statEl.className = "vc-status status-disconnected"; }
+    if (card)   card.className   = "vital-card card-disconnected";
+    if (bar)    bar.style.width  = "0%";
+    if (pk)     pk.innerText     = "—";
+    return;
+  }
+
+  if (peakEcg === null || ecgHeartRate > peakEcg) peakEcg = ecgHeartRate;
+  const st = getVitalStatus("hr", ecgHeartRate);   // reuse HR thresholds
+  if (valEl)  valEl.innerText   = ecgHeartRate;
+  if (statEl) { statEl.innerHTML = `<i class="fa-solid ${st.icon}"></i> ${st.text}`; statEl.className = `vc-status status-${st.level}`; }
+  if (card)   card.className    = `vital-card card-${st.level}`;
+  if (bar)    bar.style.width   = `${Math.min(100, (ecgHeartRate / 200) * 100)}%`;
+  if (pk)     pk.innerText      = peakEcg !== null ? `${peakEcg} bpm` : "--";
 }
 
 // ─── AI Alerts & Insights — unified engine ────────────────────────────────────
@@ -336,6 +411,7 @@ function initCharts() {
   hrChart   = makeChart("hrChart",   "Heart Rate",  "#5b8dee", { yLabel: "bpm", yMin: 30,  yMax: 200, tickSuffix: " bpm", normalLow: 60,  normalHigh: 100 });
   spo2Chart = makeChart("spo2Chart", "SpO₂",        "#4ab3c8", { yLabel: "%",   yMin: 80,  yMax: 100, tickSuffix: "%",    normalLow: 95,  normalHigh: 100 });
   tempChart = makeChart("tempChart", "Temperature", "#e0963c", { yLabel: "°F",  yMin: 90,  yMax: 104, tickSuffix: "°F",   normalLow: 97,  normalHigh: 100.4 });
+  ecgChart  = makeChart("ecgChart",  "ECG Heart Rate", "#e8547a", { yLabel: "bpm", yMin: 30, yMax: 200, tickSuffix: " bpm", normalLow: 60, normalHigh: 100 });
 }
 
 // ── Dynamic chart line coloring ───────────────────────────────────────────────
@@ -354,7 +430,7 @@ function updateChartColor(chart, level) {
   // Don't call update here — caller will do it to batch
 }
 
-function syncChartColors(hr, spo2, tempF) {
+function syncChartColors(hr, spo2, tempF, ecgHr) {
   if (hr != null) {
     const lvl = getVitalStatus("hr", hr).level;
     updateChartColor(hrChart, lvl);
@@ -374,11 +450,17 @@ function syncChartColors(hr, spo2, tempF) {
     updateChartColor(tempChart, lvl);
     if (tempChart) tempChart.update("none");
   }
+  // ECG — leave the pink/red accent color alone when leads are off (-1); no data to color by
+  if (ecgHr != null && ecgHr !== -1) {
+    const lvl = getVitalStatus("hr", ecgHr).level;
+    updateChartColor(ecgChart, lvl);
+    if (ecgChart) ecgChart.update("none");
+  }
 }
 
 // Append a single new data point to whichever historical chart is active.
 // This keeps both the 1h and 24h charts live without re-fetching all data.
-function appendToActiveChart(time, hr, spo2, tempF) {
+function appendToActiveChart(time, hr, spo2, tempF, ecgHr) {
   const label = new Date(time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const longLabel = new Date(time).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   const chartLabel = currentFilter === "1h" ? label : longLabel;
@@ -387,6 +469,7 @@ function appendToActiveChart(time, hr, spo2, tempF) {
     { c: hrChart,   v: hr   },
     { c: spo2Chart, v: spo2 === -1 ? null : spo2 },
     { c: tempChart, v: tempF },
+    { c: ecgChart,  v: (ecgHr == null || ecgHr === -1) ? null : ecgHr },
   ].forEach(({ c, v }) => {
     if (!c) return;
     c.data.labels.push(chartLabel);
@@ -429,7 +512,7 @@ async function fetchHistoricalData(range) {
       return;
     }
 
-    const labels = [], hrD = [], spo2D = [], tempD = [];
+    const labels = [], hrD = [], spo2D = [], tempD = [], ecgD = [];
     result.data.forEach(d => {
       // For 1h: show HH:MM:SS; for 24h: show HH:MM
       const opts = range === "1h"
@@ -439,12 +522,14 @@ async function fetchHistoricalData(range) {
       hrD.push(d.heartRate ?? null);
       spo2D.push(d.spo2 === -1 ? null : (d.spo2 ?? null));
       tempD.push(d.temperatureF ?? null);
+      ecgD.push(d.ecgHeartRate == null || d.ecgHeartRate === -1 ? null : d.ecgHeartRate);
     });
 
     [
       { c: hrChart,   d: hrD   },
       { c: spo2Chart, d: spo2D },
       { c: tempChart, d: tempD },
+      { c: ecgChart,  d: ecgD  },
     ].forEach(({ c, d }) => {
       if (!c) return;
       c.data.labels           = labels;
@@ -592,14 +677,24 @@ async function executeReset() {
     const resetProfile = await profRes.json();
 
     // 3. Clear charts
-    [hrChart, spo2Chart, tempChart].forEach(c => {
+    [hrChart, spo2Chart, tempChart, ecgChart].forEach(c => {
       if (!c) return;
       c.data.labels = []; c.data.datasets[0].data = []; syncBands(c); c.update();
     });
 
     // 4. Clear signal processing buffers and peaks
     hrBuf.length = 0; spo2Buf.length = 0; tempBuf.length = 0;
-    peakHr = null; minSpo2 = null; peakTempF = null;
+    peakHr = null; minSpo2 = null; peakTempF = null; peakEcg = null;
+
+    // Reset activity/ECG cards to their placeholder state
+    ["card-activity", "card-ecg"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.className = "vital-card";
+    });
+    const activityValEl = document.getElementById("activityScore");
+    if (activityValEl) activityValEl.innerText = "--";
+    const ecgValEl = document.getElementById("ecgHr");
+    if (ecgValEl) ecgValEl.innerText = "--";
 
     // 5. Clear alerts and insights panel
     activeAlerts.clear(); aiInsights = []; renderInsightsPanel();
@@ -634,7 +729,14 @@ async function loadDashboard() {
     if (data.fusion?.indicators) updateAIInsights(data.fusion.indicators);
 
     // data.vitals now uses temperatureF from the new server
-    renderVitals(data.vitals, data.time);
+    renderVitals(
+      {
+        ...data.vitals,
+        ecgHeartRate: data.ecgHeartRate, activityScore: data.activityScore,
+        posture: data.posture, motionDetected: data.motionDetected,
+      },
+      data.time
+    );
   } catch (e) { console.warn("[poll]", e.message); }
 }
 
@@ -729,11 +831,15 @@ document.addEventListener("DOMContentLoaded", () => {
     // doc now has temperatureF directly from server
     const vTime = doc.time || new Date();
     renderVitals(
-      { heartRate: doc.heartRate, spo2: doc.spo2, temperatureF: doc.temperatureF, isPeak: doc.isPeak },
+      {
+        heartRate: doc.heartRate, spo2: doc.spo2, temperatureF: doc.temperatureF, isPeak: doc.isPeak,
+        ecgHeartRate: doc.ecgHeartRate, activityScore: doc.activityScore,
+        posture: doc.posture, motionDetected: doc.motionDetected,
+      },
       vTime
     );
     // Append new point to the active historical chart in real time
-    appendToActiveChart(vTime, doc.heartRate, doc.spo2, doc.temperatureF);
+    appendToActiveChart(vTime, doc.heartRate, doc.spo2, doc.temperatureF, doc.ecgHeartRate);
     // AI insights → merged panel
     if (doc.fusion?.indicators) updateAIInsights(doc.fusion.indicators);
   });

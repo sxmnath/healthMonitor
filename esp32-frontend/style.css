@@ -568,6 +568,52 @@ body {
 .vc-peak-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .vc-peak-val   { font-size: 0.82rem; font-weight: 600; color: var(--text-secondary); font-family: var(--font-mono); }
 
+/* ─── Motion & ECG Cards (Part 8) ─────────────────────── */
+.vitals-grid-secondary {
+  grid-template-columns: repeat(2, 1fr);
+  margin-top: 14px;
+}
+
+/* Teal accent for Activity, pink/red accent for ECG — distinct from the
+   primary HR/SpO2/Temp trio so the two families read as related-but-separate */
+#card-activity::before { background: #14b8a6; }
+#card-ecg::before       { background: #e8547a; }
+
+.vc-icon-activity { background: #e6fbf8; color: #14b8a6; }
+.vc-icon-ecg       { background: #fdeaf0; color: #e8547a; }
+
+#card-activity .vc-value { color: #14b8a6; }
+#card-ecg       .vc-value { color: #e8547a; }
+.vital-card.card-disconnected .vc-value { color: var(--text-muted); }
+
+.vc-bar-activity { background: #14b8a6; }
+.vc-bar-ecg       { background: #e8547a; }
+
+/* Posture indicator row inside the Activity card's peak row */
+.posture-val { display: flex; align-items: center; gap: 6px; }
+.posture-val i { color: var(--text-secondary); font-size: 0.85rem; }
+
+/* Motion dot — pulses teal when moving, sits still and grey when not */
+.motion-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--border-mid);
+  flex-shrink: 0;
+  transition: background 0.3s ease;
+}
+.motion-dot.motion-active {
+  background: #14b8a6;
+  animation: motionPulse 1.6s ease-in-out infinite;
+}
+.motion-dot.motion-still { background: var(--border-mid); }
+@keyframes motionPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(20,184,166,0.35); }
+  50%     { box-shadow: 0 0 0 4px rgba(20,184,166,0); }
+}
+
+/* Leads-off / disconnected ECG state mirrors the SpO2 "no finger" treatment */
+.status-leads-off { background: var(--bg); color: var(--text-muted); border-color: var(--border-mid); }
+
 /* ─── Charts Panel ────────────────────────────────────── */
 .charts-panel {
   background: var(--surface);
@@ -618,6 +664,7 @@ body {
 .chart-card.chart-hr   { border-top: 3px solid var(--hr-color); }
 .chart-card.chart-spo2 { border-top: 3px solid var(--spo2-color); }
 .chart-card.chart-temp { border-top: 3px solid var(--temp-color); }
+.chart-card.chart-ecg  { border-top: 3px solid #e8547a; }
 
 .chart-label {
   display: flex;

@@ -209,6 +209,50 @@
 
           </div>
 
+          <!-- Motion & ECG cards (Part 6) -->
+          <div class="vitals-grid vitals-grid-secondary">
+
+            <div class="vital-card" id="card-activity">
+              <div class="vc-header">
+                <div class="vc-icon vc-icon-activity"><i class="fa-solid fa-person-walking"></i></div>
+                <div class="vc-label-group">
+                  <span class="vc-name">Activity</span>
+                  <span class="vc-status" id="status-activity">—</span>
+                </div>
+              </div>
+              <div class="vc-value-row">
+                <span class="vc-value" id="activityScore">--</span>
+                <span class="vc-unit">/ 100</span>
+              </div>
+              <div class="vc-bar-wrap"><div class="vc-bar vc-bar-activity" id="bar-activity"></div></div>
+              <div class="vc-peak-row">
+                <span class="vc-peak-label">Posture</span>
+                <span class="vc-peak-val posture-val">
+                  <span class="motion-dot" id="motionDot" title="Motion status"></span>
+                  <i class="fa-solid fa-circle-question" id="postureIcon"></i>
+                  <span id="postureText">—</span>
+                </span>
+              </div>
+            </div>
+
+            <div class="vital-card" id="card-ecg">
+              <div class="vc-header">
+                <div class="vc-icon vc-icon-ecg"><i class="fa-solid fa-wave-square"></i></div>
+                <div class="vc-label-group">
+                  <span class="vc-name">ECG Heart Rate</span>
+                  <span class="vc-status" id="status-ecg">—</span>
+                </div>
+              </div>
+              <div class="vc-value-row">
+                <span class="vc-value" id="ecgHr">--</span>
+                <span class="vc-unit">bpm</span>
+              </div>
+              <div class="vc-bar-wrap"><div class="vc-bar vc-bar-ecg" id="bar-ecg"></div></div>
+              <div class="vc-peak-row"><span class="vc-peak-label">Peak</span><span id="peak-ecg" class="vc-peak-val">--</span></div>
+            </div>
+
+          </div>
+
           <!-- Charts -->
           <div class="charts-panel">
             <div class="charts-header">
@@ -250,6 +294,15 @@
                 <span class="chart-unit">degrees Fahrenheit (°F)</span>
               </div>
               <div class="chart-wrap"><canvas id="tempChart"></canvas></div>
+            </div>
+
+            <div class="chart-card chart-ecg">
+              <div class="chart-label">
+                <span class="chart-dot" style="background:#e8547a"></span>
+                <span class="chart-name">ECG Heart Rate</span>
+                <span class="chart-unit">beats per minute (bpm)</span>
+              </div>
+              <div class="chart-wrap"><canvas id="ecgChart"></canvas></div>
             </div>
 
           </div>

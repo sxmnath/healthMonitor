@@ -141,6 +141,93 @@ async function assignPatientId(deviceId) {
   return patient;
 }
 
+// ─── Alert state (in-memory, per patient) ────────────────────────────────────
+// Persists across POST /data calls — resets on server restart (acceptable).
+const _lastStatus   = new Map();  // patient_id → "stable"|"warning"|"critical"
+const _lastLeadsOff = new Map();  // patient_id → boolean
+
+// generateAlerts — called fire-and-forget after every ingest.
+// Two gating strategies:
+//   Standard vitals alerts → status-change gated (avoids flooding on same state)
+//   ECG leads-off          → leads-state-change gated (only on transition)
+//   Exertional desaturation → fires whenever condition is true (clinically important)
+async function generateAlerts(patient_id, vitals, motion) {
+  try {
+    const { heartRate: hr, spo2, temperatureF: tF, ecgHeartRate = null } = vitals;
+    const { activityScore = 0 } = motion || {};
+    const alerts = [];
+
+    // ── ECG leads-off (state-change gated) ─────────────────────────────────
+    const leadsNowOff = (ecgHeartRate === -1);
+    const wasLeadsOff = _lastLeadsOff.get(patient_id) || false;
+    _lastLeadsOff.set(patient_id, leadsNowOff);
+    if (leadsNowOff && !wasLeadsOff) {
+      alerts.push({
+        patient_id, severity: "warning", type: "ecg_leads_off",
+        message: "ECG electrodes are not connected. Attach leads to resume heart rate monitoring.",
+        vitals: { heartRate: hr, spo2, temperatureF: tF },
+      });
+    }
+
+    // ── Exertional desaturation (fires whenever condition is true) ──────────
+    // activityScore > 70 = high movement; spo2 < 94 during movement is clinically significant
+    if (activityScore > 70 && spo2 !== -1 && spo2 < 94) {
+      alerts.push({
+        patient_id, severity: "warning", type: "exertional_desaturation",
+        message: `SpO₂ dropped to ${spo2}% during high activity (score: ${Math.round(activityScore)}). May indicate reduced cardiorespiratory reserve.`,
+        vitals: { heartRate: hr, spo2, temperatureF: tF },
+      });
+    }
+
+    // ── Standard vitals alerts (status-change gated) ─────────────────────────
+    const newStatus = getStatus({ heartRate: hr, spo2, temperatureF: tF });
+    const oldStatus = _lastStatus.get(patient_id);
+    _lastStatus.set(patient_id, newStatus);
+
+    if (newStatus !== oldStatus && newStatus !== "stable") {
+      if (spo2 !== -1 && spo2 < 92) {
+        alerts.push({ patient_id, severity: "critical", type: "spo2_low",
+          message: `Critical SpO₂: ${spo2}%.`, vitals: { heartRate: hr, spo2, temperatureF: tF } });
+      } else if (spo2 !== -1 && spo2 < 95) {
+        alerts.push({ patient_id, severity: "warning", type: "spo2_low",
+          message: `Low SpO₂: ${spo2}%.`, vitals: { heartRate: hr, spo2, temperatureF: tF } });
+      }
+      if (hr > 120) {
+        alerts.push({ patient_id, severity: "critical", type: "hr_high",
+          message: `Critical heart rate: ${hr} bpm.`, vitals: { heartRate: hr, spo2, temperatureF: tF } });
+      } else if (hr > 100) {
+        alerts.push({ patient_id, severity: "warning", type: "hr_high",
+          message: `Elevated heart rate: ${hr} bpm.`, vitals: { heartRate: hr, spo2, temperatureF: tF } });
+      }
+      if (hr < 50) {
+        alerts.push({ patient_id, severity: "critical", type: "hr_low",
+          message: `Critical low heart rate: ${hr} bpm.`, vitals: { heartRate: hr, spo2, temperatureF: tF } });
+      }
+      if (tF > 102) {
+        alerts.push({ patient_id, severity: "critical", type: "temp_high",
+          message: `Critical temperature: ${tF}°F.`, vitals: { heartRate: hr, spo2, temperatureF: tF } });
+      } else if (tF >= 100.4) {
+        alerts.push({ patient_id, severity: "warning", type: "temp_high",
+          message: `Fever detected: ${tF}°F.`, vitals: { heartRate: hr, spo2, temperatureF: tF } });
+      }
+      if (spo2 === -1) {
+        alerts.push({ patient_id, severity: "warning", type: "sensor_off",
+          message: "SpO₂ sensor is not connected.", vitals: { heartRate: hr, spo2, temperatureF: tF } });
+      }
+      if (alerts.filter(a => a.severity === "critical").length >= 2) {
+        alerts.push({ patient_id, severity: "critical", type: "multi_critical",
+          message: "Multiple critical vitals detected simultaneously.", vitals: { heartRate: hr, spo2, temperatureF: tF } });
+      }
+    }
+
+    if (alerts.length > 0) {
+      await Alert.insertMany(alerts);
+    }
+  } catch (err) {
+    console.error("[generateAlerts]", err.message);
+  }
+}
+
 // ─── Status helpers ───────────────────────────────────────────────────────────
 function getStatus(vitals) {
   const { heartRate: hr, spo2, temperatureF: tF } = vitals;
@@ -153,25 +240,54 @@ function getStatus(vitals) {
 // ─── Ingest endpoint (ESP32 → POST /data) ────────────────────────────────────
 app.post("/data", async (req, res) => {
   try {
-    const { deviceId, heartRate, spo2, temperature } = req.body;
+    // Destructure all fields — existing vitals + ECG + MPU6050
+    const {
+      deviceId, heartRate, spo2, temperature,
+      ecgHeartRate,
+      accelX, accelY, accelZ,
+      gyroX,  gyroY,  gyroZ,
+      activityScore, posture, motionDetected,
+    } = req.body;
+
     if (!deviceId) return res.status(400).json({ error: "deviceId required" });
 
-    const patient  = await assignPatientId(deviceId);
-    const clean    = processVitals(deviceId, { heartRate, spo2, temperature });
+    const patient = await assignPatientId(deviceId);
+    const clean   = processVitals(deviceId, { heartRate, spo2, temperature });
+
+    // Normalise motion fields — safe defaults when MPU6050 data is absent
+    const motion = {
+      activityScore:  (activityScore  != null) ? Number(activityScore)      : 0,
+      posture:        (posture        != null) ? String(posture)             : "unknown",
+      motionDetected: (motionDetected != null) ? Boolean(motionDetected)    : false,
+    };
 
     const doc = await SensorData.create({
       patient_id:   patient.patient_id,
       deviceId,
+      // Core vitals (smoothed)
       heartRate:    clean.heartRate,
       spo2:         clean.spo2,
       temperatureF: clean.temperatureF,
       isPeak:       clean.isPeak,
       time:         new Date(),
+      // ECG
+      ecgHeartRate: (ecgHeartRate != null) ? Number(ecgHeartRate) : null,
+      // MPU6050 raw
+      accelX: (accelX != null) ? Number(accelX) : null,
+      accelY: (accelY != null) ? Number(accelY) : null,
+      accelZ: (accelZ != null) ? Number(accelZ) : null,
+      gyroX:  (gyroX  != null) ? Number(gyroX)  : null,
+      gyroY:  (gyroY  != null) ? Number(gyroY)  : null,
+      gyroZ:  (gyroZ  != null) ? Number(gyroZ)  : null,
+      // Derived motion
+      activityScore:  motion.activityScore,
+      posture:        motion.posture,
+      motionDetected: motion.motionDetected,
     });
 
-    const fusion = analyzeHealth(clean.heartRate, clean.spo2, clean.temperatureF);
+    const fusion = analyzeHealth(clean.heartRate, clean.spo2, clean.temperatureF, motion);
 
-    // Broadcast to patient's room
+    // ── Staff room broadcast (full payload) ─────────────────────────────────
     io.to(patient.patient_id).emit("vitals-update", {
       patient_id:   patient.patient_id,
       deviceId,
@@ -180,12 +296,32 @@ app.post("/data", async (req, res) => {
       spo2:         clean.spo2,
       temperatureF: clean.temperatureF,
       isPeak:       clean.isPeak,
+      // ECG + motion fields for patient dashboard
+      ecgHeartRate:   doc.ecgHeartRate,
+      activityScore:  motion.activityScore,
+      posture:        motion.posture,
+      motionDetected: motion.motionDetected,
       fusion,
       time:         doc.time,
     });
 
-    // Broadcast to ward overview listeners
+    // ── Viewer room broadcast (safe subset only — no clinical details) ──────
+    io.to(`viewer:${patient.patient_id}`).emit("vitals-update", {
+      name:    patient.name,
+      vitals:  { heartRate: clean.heartRate, spo2: clean.spo2, temperatureF: clean.temperatureF },
+      status:  getStatus(clean),
+      lastSeen: doc.time,
+    });
+
+    // ── Ward overview broadcast ─────────────────────────────────────────────
     io.emit("patient-list-update", { patient_id: patient.patient_id, deviceId });
+
+    // ── Alert generation (fire-and-forget) ──────────────────────────────────
+    generateAlerts(
+      patient.patient_id,
+      { heartRate: clean.heartRate, spo2: clean.spo2, temperatureF: clean.temperatureF, ecgHeartRate: doc.ecgHeartRate },
+      motion
+    );
 
     res.status(200).json({ status: "ok", patient_id: patient.patient_id });
   } catch (err) {
@@ -224,7 +360,11 @@ app.get("/api/patients", protect, async (req, res) => {
         weight: p.weight, height: p.height, roomNo: p.roomNo, ward: p.ward,
         physician: p.physician, diagnosis: p.diagnosis, phone: p.phone, notes: p.notes,
         vitals,
-        fusion:   analyzeHealth(vitals.heartRate, vitals.spo2, vitals.temperatureF),
+        fusion:   analyzeHealth(vitals.heartRate, vitals.spo2, vitals.temperatureF, {
+          activityScore:  latest.activityScore,
+          posture:        latest.posture,
+          motionDetected: latest.motionDetected,
+        }),
         status:   getStatus(vitals),
         lastSeen: latest.time,
       };
@@ -258,7 +398,11 @@ app.get("/api/patients/:id", protect, async (req, res) => {
     res.json({
       ...patient,
       vitals,
-      fusion: vitals ? analyzeHealth(vitals.heartRate, vitals.spo2, vitals.temperatureF) : null,
+      fusion: vitals ? analyzeHealth(vitals.heartRate, vitals.spo2, vitals.temperatureF, {
+        activityScore:  latest?.activityScore,
+        posture:        latest?.posture,
+        motionDetected: latest?.motionDetected,
+      }) : null,
       status: vitals ? getStatus(vitals) : "unknown",
       lastSeen: latest?.time || null,
     });
@@ -350,6 +494,11 @@ app.get("/api/patients/:id/history", protect, async (req, res) => {
             spo2:         { $avg: "$spo2" },
             temperatureF: { $avg: "$temperatureF" },
             isPeak:       { $max: "$isPeak" },
+            // ECG + motion — avg for numeric, first for string/bool
+            ecgHeartRate:   { $avg: "$ecgHeartRate" },
+            activityScore:  { $avg: "$activityScore" },
+            posture:        { $first: "$posture" },
+            motionDetected: { $max: "$motionDetected" },
             time:         { $first: "$time" },
           }
         },
@@ -361,13 +510,21 @@ app.get("/api/patients/:id/history", protect, async (req, res) => {
             spo2:         { $round: ["$spo2", 1] },
             temperatureF: { $round: ["$temperatureF", 1] },
             isPeak:       1,
+            ecgHeartRate:   { $round: ["$ecgHeartRate", 0] },
+            activityScore:  { $round: ["$activityScore", 1] },
+            posture:        1,
+            motionDetected: 1,
             time:         1,
           }
         }
       ]);
     } else {
       data = await SensorData
-        .find(query, { heartRate: 1, spo2: 1, temperatureF: 1, isPeak: 1, time: 1, _id: 0 })
+        .find(query, {
+          heartRate: 1, spo2: 1, temperatureF: 1, isPeak: 1,
+          ecgHeartRate: 1, activityScore: 1, posture: 1, motionDetected: 1,
+          time: 1, _id: 0,
+        })
         .sort({ time: 1 })
         .lean();
     }
@@ -502,7 +659,11 @@ app.get("/api/dashboard", protect, async (req, res) => {
 
     const pFilter = latest.patient_id ? { patient_id: latest.patient_id } : { deviceId: latest.deviceId };
     const patient = await Patient.findOne(pFilter).lean();
-    const fusion  = analyzeHealth(latest.heartRate, latest.spo2, latest.temperatureF);
+    const fusion  = analyzeHealth(latest.heartRate, latest.spo2, latest.temperatureF, {
+      activityScore:  latest.activityScore,
+      posture:        latest.posture,
+      motionDetected: latest.motionDetected,
+    });
 
     res.json({
       patient_id:  patient?.patient_id || latest.patient_id,
@@ -513,6 +674,11 @@ app.get("/api/dashboard", protect, async (req, res) => {
         spo2:         latest.spo2,
         temperatureF: latest.temperatureF,
       },
+      // ECG + motion fields — poll fallback parity with the WS "vitals-update" payload
+      ecgHeartRate:   latest.ecgHeartRate,
+      activityScore:  latest.activityScore,
+      posture:        latest.posture,
+      motionDetected: latest.motionDetected,
       fusion,
       time: latest.time,
     });
@@ -536,10 +702,38 @@ app.get("/api/patient-map", protect, async (req, res) => {
 // ─── WebSocket ────────────────────────────────────────────────────────────────
 io.on("connection", (socket) => {
   console.log("[WS] Connected:", socket.id);
+
+  // Staff room — authenticated clients join by patient_id
   socket.on("join-patient", (pid) => {
+    if (typeof pid !== "string" || pid.length > 20) return;
     socket.join(pid);
-    console.log(`[WS] ${socket.id} joined room: ${pid}`);
+    console.log(`[WS] ${socket.id} joined staff room: ${pid}`);
   });
+
+  // Viewer room — public clients join by viewer token
+  // Token is validated against DB before the socket joins the room
+  socket.on("join-viewer", async (token) => {
+    try {
+      if (!/^[0-9a-f]{64}$/.test(token)) {
+        socket.emit("viewer-error", { message: "Invalid link." });
+        return;
+      }
+      const patient = await Patient
+        .findOne({ viewerToken: token })
+        .select("+viewerToken patient_id");
+      if (!patient) {
+        socket.emit("viewer-error", { message: "Viewer link not found or expired." });
+        return;
+      }
+      socket.join(`viewer:${patient.patient_id}`);
+      socket.emit("viewer-joined", { patient_id: patient.patient_id });
+      console.log(`[WS] ${socket.id} joined viewer room: viewer:${patient.patient_id}`);
+    } catch (err) {
+      console.error("[WS join-viewer]", err.message);
+      socket.emit("viewer-error", { message: "Server error." });
+    }
+  });
+
   socket.on("disconnect", () => console.log("[WS] Disconnected:", socket.id));
 });
 
