@@ -638,17 +638,32 @@ app.post("/api/patients/:id/abha/link", protect, authorizeRoles("admin", "doctor
       return res.status(422).json({ error: "ABHA number must be 14 digits." });
     }
 
-    const patient = await Patient.findOne({ patient_id: req.params.id });
+    const existing = await Patient.findOne({ patient_id: req.params.id }).lean();
+    if (!existing) return res.status(404).json({ error: "Patient not found" });
+
+    const { txnId, demo } = await abdm.initiateCareContextLink({ ...existing, abhaNumber: cleaned });
+
+    // Atomic $set — deliberately NOT findOne() + mutate + .save() here.
+    // abhaLinkTxnId/abhaConsentToken have select:false, and mutating a
+    // select:false field on a document loaded without that field in its
+    // projection is a known Mongoose footgun: the write can silently fail
+    // to persist because the path was never part of the document's loaded
+    // state. findOneAndUpdate sends a plain MongoDB update and sidesteps
+    // that entirely — this is also what every other route here already does.
+    const patient = await Patient.findOneAndUpdate(
+      { patient_id: req.params.id },
+      {
+        $set: {
+          abhaNumber:       cleaned,
+          abhaLinked:       false,
+          abhaConsentToken: null,
+          abhaLinkedAt:     null,
+          abhaLinkTxnId:    txnId,
+        },
+      },
+      { new: true }
+    );
     if (!patient) return res.status(404).json({ error: "Patient not found" });
-
-    patient.abhaNumber       = cleaned;
-    patient.abhaLinked       = false;
-    patient.abhaConsentToken = null;
-    patient.abhaLinkedAt     = null;
-
-    const { txnId, demo } = await abdm.initiateCareContextLink(patient);
-    patient.abhaLinkTxnId = txnId;
-    await patient.save();
 
     res.json({
       message: demo
@@ -671,7 +686,10 @@ app.post("/api/patients/:id/abha/verify-otp", protect, authorizeRoles("admin", "
     const { otp } = req.body;
     if (!otp) return res.status(422).json({ error: "OTP is required." });
 
-    const patient = await Patient.findOne({ patient_id: req.params.id }).select("+abhaLinkTxnId +abhaConsentToken");
+    // Reading a select:false field back requires the +field override — that
+    // part is fine. It's writing it back via a mutated .save() that's the
+    // footgun (see the /abha/link route above for why); use $set instead.
+    const patient = await Patient.findOne({ patient_id: req.params.id }).select("+abhaLinkTxnId");
     if (!patient) return res.status(404).json({ error: "Patient not found" });
     if (!patient.abhaLinkTxnId) {
       return res.status(400).json({ error: "No pending ABHA link for this patient. Start over." });
@@ -679,11 +697,17 @@ app.post("/api/patients/:id/abha/verify-otp", protect, authorizeRoles("admin", "
 
     const { consentToken } = await abdm.confirmCareContextLink(patient.abhaLinkTxnId, otp);
 
-    patient.abhaLinked       = true;
-    patient.abhaConsentToken = consentToken;
-    patient.abhaLinkedAt     = new Date();
-    patient.abhaLinkTxnId    = null;
-    await patient.save();
+    await Patient.findOneAndUpdate(
+      { patient_id: req.params.id },
+      {
+        $set: {
+          abhaLinked:       true,
+          abhaConsentToken: consentToken,
+          abhaLinkedAt:     new Date(),
+          abhaLinkTxnId:    null,
+        },
+      }
+    );
 
     io.emit("patient-profile-update", { patient_id: req.params.id });
     res.json({ message: "ABHA linked successfully.", abhaLinked: true });
