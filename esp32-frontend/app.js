@@ -778,8 +778,28 @@ function renderAbhaSection() {
     badge.textContent   = p.abhaLinked ? "Linked" : (p.abhaNumber ? "Pending verification" : "Not linked");
     badge.className     = `abha-badge ${p.abhaLinked ? "abha-badge-linked" : ""}`;
   }
-  const numInput = document.getElementById("f-abhaNumber");
-  if (numInput) numInput.value = p.abhaNumber || "";
+
+  const entryRow  = document.getElementById("abhaEntryRow");
+  const linkedRow = document.getElementById("abhaLinkedRow");
+  const hint      = document.getElementById("abhaHint");
+  const numInput  = document.getElementById("f-abhaNumber");
+
+  if (p.abhaLinked && p.abhaNumber) {
+    // Linking already saved the moment OTP was verified — show that plainly
+    // instead of leaving an editable form that implies "Save Changes" is
+    // still needed for this field.
+    if (entryRow)  entryRow.style.display  = "none";
+    if (linkedRow) linkedRow.style.display = "flex";
+    const masked = p.abhaNumber.replace(/^(\d{2})\d{8}(\d{4})$/, "$1••••••••$2");
+    const linkedText = document.getElementById("abhaLinkedText");
+    if (linkedText) linkedText.textContent = `${masked}${p.abhaLinkedAt ? " — linked " + new Date(p.abhaLinkedAt).toLocaleDateString() : ""}`;
+    if (hint) hint.textContent = "This patient's ABHA link is already saved — no further action needed here.";
+  } else {
+    if (entryRow)  entryRow.style.display  = "flex";
+    if (linkedRow) linkedRow.style.display = "none";
+    if (numInput)  numInput.value = p.abhaNumber || "";
+    if (hint) hint.textContent = "Enter the patient's ABHA number and click Link — an OTP is sent to their Aadhaar-linked phone to confirm consent.";
+  }
 
   // Also reflect status on the read-only profile panel
   const pfNum   = document.getElementById("pf-abha-number");
@@ -868,6 +888,16 @@ function cancelAbhaLink() {
   if (otpInput) otpInput.value = "";
   const hint = document.getElementById("abhaHint");
   if (hint) hint.textContent = "Enter the patient's ABHA number and click Link — an OTP is sent to their Aadhaar-linked phone to confirm consent.";
+}
+
+// Lets staff re-open the entry form from the "already linked" confirmation
+// state — e.g. to relink under a different ABHA number.
+function changeAbha() {
+  const linkedRow = document.getElementById("abhaLinkedRow");
+  const entryRow  = document.getElementById("abhaEntryRow");
+  if (linkedRow) linkedRow.style.display = "none";
+  if (entryRow)  entryRow.style.display  = "flex";
+  cancelAbhaLink();
 }
 
 // ─── Discharge & Export (Stage 3 trigger) ───────────────────────────────────────
@@ -1029,6 +1059,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("abhaLinkBtn")?.addEventListener("click", linkAbha);
   document.getElementById("abhaVerifyBtn")?.addEventListener("click", verifyAbhaOtp);
   document.getElementById("abhaCancelBtn")?.addEventListener("click", cancelAbhaLink);
+  document.getElementById("abhaChangeBtn")?.addEventListener("click", changeAbha);
 
   // Discharge & Export (Stage 3 trigger)
   document.getElementById("dischargeBtn")?.addEventListener("click", dischargePatient);

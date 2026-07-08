@@ -1545,6 +1545,25 @@ html {
 .abha-row input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-light); outline: none; }
 .abha-otp-row { margin-top: 10px; }
 
+.abha-linked-row {
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--normal-light);
+  border: 1px solid #a8e6c4;
+  border-radius: var(--radius-sm);
+}
+.abha-linked-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--normal);
+  font-family: var(--font-mono, monospace);
+}
+.abha-linked-info i { font-size: 1rem; }
+.abha-linked-row .abha-cancel-btn { padding: 5px 12px; font-size: 0.76rem; }
+
 .abha-link-btn, .abha-verify-btn {
   display: flex; align-items: center; gap: 6px;
   padding: 9px 14px;

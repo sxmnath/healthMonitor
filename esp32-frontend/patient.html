@@ -395,6 +395,17 @@
             <i class="fa-solid fa-id-card"></i> ABHA Health ID
             <span class="abha-badge" id="abhaBadge">Not linked</span>
           </div>
+
+          <!-- Shown once abhaLinked is true — makes it visually unmistakable that
+               linking already saved, so "Save Changes" is clearly not needed for this. -->
+          <div class="abha-row abha-linked-row" id="abhaLinkedRow" style="display:none">
+            <div class="abha-linked-info">
+              <i class="fa-solid fa-circle-check"></i>
+              <span id="abhaLinkedText">Linked</span>
+            </div>
+            <button type="button" class="abha-cancel-btn" id="abhaChangeBtn">Change</button>
+          </div>
+
           <div class="abha-row" id="abhaEntryRow">
             <input type="text" id="f-abhaNumber" placeholder="14-digit ABHA number" maxlength="14" inputmode="numeric">
             <button type="button" class="abha-link-btn" id="abhaLinkBtn"><i class="fa-solid fa-link"></i> Link ABHA</button>
