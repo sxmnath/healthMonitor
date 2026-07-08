@@ -131,6 +131,13 @@
             <div class="profile-grid">
               <div class="profile-field profile-field-full"><span class="pf-label">Physician</span><span class="pf-val" id="pf-physician">—</span></div>
               <div class="profile-field profile-field-full"><span class="pf-label">Phone / Emergency</span><span class="pf-val" id="pf-phone">—</span></div>
+              <div class="profile-field profile-field-full">
+                <span class="pf-label">ABHA Health ID</span>
+                <span class="pf-val" id="pf-abha">
+                  <span id="pf-abha-number">—</span>
+                  <span class="abha-badge" id="pf-abha-badge" style="display:none">Not linked</span>
+                </span>
+              </div>
             </div>
           </div>
 
@@ -295,6 +302,9 @@
               <button class="reset-btn" id="resetDataBtn">
                 <i class="fa-solid fa-rotate-left"></i> Reset All Data
               </button>
+              <button class="discharge-btn" id="dischargeBtn">
+                <i class="fa-solid fa-file-export"></i> Discharge &amp; Export
+              </button>
             </div>
           </div>
 
@@ -377,6 +387,24 @@
             <label>Notes</label>
             <textarea id="f-notes" rows="3" placeholder="Additional notes…"></textarea>
           </div>
+        </div>
+
+        <!-- ── ABHA Health ID linking (Stage 1 of ABDM integration) ────────── -->
+        <div class="abha-section" id="abhaSection">
+          <div class="abha-section-header">
+            <i class="fa-solid fa-id-card"></i> ABHA Health ID
+            <span class="abha-badge" id="abhaBadge">Not linked</span>
+          </div>
+          <div class="abha-row" id="abhaEntryRow">
+            <input type="text" id="f-abhaNumber" placeholder="14-digit ABHA number" maxlength="14" inputmode="numeric">
+            <button type="button" class="abha-link-btn" id="abhaLinkBtn"><i class="fa-solid fa-link"></i> Link ABHA</button>
+          </div>
+          <div class="abha-row abha-otp-row" id="abhaOtpRow" style="display:none">
+            <input type="text" id="f-abhaOtp" placeholder="6-digit OTP" maxlength="6" inputmode="numeric">
+            <button type="button" class="abha-verify-btn" id="abhaVerifyBtn"><i class="fa-solid fa-check"></i> Verify</button>
+            <button type="button" class="abha-cancel-btn" id="abhaCancelBtn">Cancel</button>
+          </div>
+          <p class="abha-hint" id="abhaHint">Enter the patient's ABHA number and click Link — an OTP is sent to their Aadhaar-linked phone to confirm consent.</p>
         </div>
       </div>
       <div class="modal-footer">

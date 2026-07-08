@@ -562,6 +562,7 @@ function renderProfile(p) {
   set("pf-diagnosis", p.diagnosis);
   set("pf-phone",     p.phone);
   set("pf-notes",     p.notes);
+  renderAbhaSection();
 }
 
 async function loadPatientProfile() {
@@ -583,6 +584,8 @@ function openEditModal() {
   setVal("f-bloodType", p.bloodType); setVal("f-weight", p.weight); setVal("f-height", p.height);
   setVal("f-roomNo", p.roomNo);   setVal("f-ward", p.ward);         setVal("f-physician", p.physician);
   setVal("f-diagnosis", p.diagnosis); setVal("f-phone", p.phone);   setVal("f-notes", p.notes);
+  cancelAbhaLink();
+  renderAbhaSection();
   document.getElementById("editModal")?.classList.add("open");
 }
 
@@ -764,6 +767,148 @@ async function revokeAccess() {
   }
 }
 
+// ─── ABHA Health ID linking (Stage 1 of ABDM integration) ──────────────────────
+// Two-step flow, mirroring the existing signup OTP UX: enter the ABHA number
+// and request a link → an OTP row appears → confirm the OTP to complete the
+// consent-backed link. abhaSection() re-renders whenever patientProfile changes.
+function renderAbhaSection() {
+  const p = patientProfile || {};
+  const badge = document.getElementById("abhaBadge");
+  if (badge) {
+    badge.textContent   = p.abhaLinked ? "Linked" : (p.abhaNumber ? "Pending verification" : "Not linked");
+    badge.className     = `abha-badge ${p.abhaLinked ? "abha-badge-linked" : ""}`;
+  }
+  const numInput = document.getElementById("f-abhaNumber");
+  if (numInput) numInput.value = p.abhaNumber || "";
+
+  // Also reflect status on the read-only profile panel
+  const pfNum   = document.getElementById("pf-abha-number");
+  const pfBadge = document.getElementById("pf-abha-badge");
+  if (pfNum)   pfNum.textContent = p.abhaNumber || "—";
+  if (pfBadge) {
+    if (p.abhaNumber) {
+      pfBadge.style.display = "";
+      pfBadge.textContent   = p.abhaLinked ? "Linked" : "Pending verification";
+      pfBadge.className     = `abha-badge ${p.abhaLinked ? "abha-badge-linked" : ""}`;
+    } else {
+      pfBadge.style.display = "none";
+    }
+  }
+}
+
+async function linkAbha() {
+  const pid = PAGE_PATIENT_ID;
+  const abhaNumber = document.getElementById("f-abhaNumber")?.value?.trim().replace(/[\s-]/g, "");
+  if (!pid) return;
+  if (!/^\d{14}$/.test(abhaNumber || "")) {
+    showToast("ABHA number must be 14 digits.", true);
+    return;
+  }
+
+  const btn = document.getElementById("abhaLinkBtn");
+  try {
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending OTP…'; }
+    const res  = await authFetch(`/api/patients/${encodeURIComponent(pid)}/abha/link`, {
+      method: "POST", body: JSON.stringify({ abhaNumber }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to initiate link");
+
+    const otpRow = document.getElementById("abhaOtpRow");
+    if (otpRow) otpRow.style.display = "flex";
+    document.getElementById("f-abhaOtp")?.focus();
+    const hint = document.getElementById("abhaHint");
+    if (hint) hint.textContent = data.demo
+      ? 'Demo mode — no real OTP was sent. Enter "000000" to confirm the link.'
+      : "OTP sent to the patient's Aadhaar-linked phone. Enter it below to confirm.";
+    showToast(data.message || "OTP sent.");
+  } catch (e) {
+    console.error("[linkAbha]", e);
+    showToast("Link failed: " + e.message, true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-link"></i> Link ABHA'; }
+  }
+}
+
+async function verifyAbhaOtp() {
+  const pid = PAGE_PATIENT_ID;
+  const otp = document.getElementById("f-abhaOtp")?.value?.trim();
+  if (!pid || !otp) { showToast("Enter the OTP first.", true); return; }
+
+  const btn = document.getElementById("abhaVerifyBtn");
+  try {
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying…'; }
+    const res  = await authFetch(`/api/patients/${encodeURIComponent(pid)}/abha/verify-otp`, {
+      method: "POST", body: JSON.stringify({ otp }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Verification failed");
+
+    showToast("ABHA linked successfully.");
+    cancelAbhaLink(); // hide the OTP row
+    await loadPatientProfile(); // refresh badges everywhere
+  } catch (e) {
+    console.error("[verifyAbhaOtp]", e);
+    showToast("Verification failed: " + e.message, true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> Verify'; }
+  }
+}
+
+function cancelAbhaLink() {
+  const row = document.getElementById("abhaOtpRow");
+  if (row) row.style.display = "none";
+  const otpInput = document.getElementById("f-abhaOtp");
+  if (otpInput) otpInput.value = "";
+  const hint = document.getElementById("abhaHint");
+  if (hint) hint.textContent = "Enter the patient's ABHA number and click Link — an OTP is sent to their Aadhaar-linked phone to confirm consent.";
+}
+
+// ─── Discharge & Export (Stage 3 trigger) ───────────────────────────────────────
+// One button, one route: generates + downloads the PDF discharge summary, and
+// if the patient has a verified ABHA link, the backend also fires the FHIR
+// Bundle push to the ABDM Health Repository in the background.
+async function dischargePatient() {
+  const pid = PAGE_PATIENT_ID;
+  if (!pid) { showToast("No patient loaded.", true); return; }
+
+  const p = patientProfile || {};
+  const confirmMsg = p.abhaLinked
+    ? `Generate the discharge summary for ${p.name || pid} and push their vitals to their linked ABHA record?`
+    : `Generate the discharge summary for ${p.name || pid}? (No ABHA link on file — only the PDF will be created.)`;
+  if (!confirm(confirmMsg)) return;
+
+  const btn = document.getElementById("dischargeBtn");
+  try {
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating…'; }
+
+    const res = await authFetch(`/api/patients/${encodeURIComponent(pid)}/discharge`, { method: "POST" });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error || "Discharge export failed");
+    }
+
+    const abhaPushStatus = res.headers.get("X-Abha-Push");
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = `discharge-${pid}.pdf`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+
+    showToast(
+      abhaPushStatus === "queued"
+        ? "Discharge summary downloaded — ABHA push in progress."
+        : "Discharge summary downloaded."
+    );
+  } catch (e) {
+    console.error("[dischargePatient]", e);
+    showToast("Discharge export failed: " + e.message, true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-file-export"></i> Discharge &amp; Export'; }
+  }
+}
+
 function copyShareUrl() {
   if (!_shareUrl) return;
   var icon = document.getElementById("shareCopyIcon");
@@ -873,6 +1018,14 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("shareModal")?.addEventListener("click", e => {
     if (e.target.id === "shareModal") closeShareModal();
   });
+
+  // ABHA linking (Stage 1)
+  document.getElementById("abhaLinkBtn")?.addEventListener("click", linkAbha);
+  document.getElementById("abhaVerifyBtn")?.addEventListener("click", verifyAbhaOtp);
+  document.getElementById("abhaCancelBtn")?.addEventListener("click", cancelAbhaLink);
+
+  // Discharge & Export (Stage 3 trigger)
+  document.getElementById("dischargeBtn")?.addEventListener("click", dischargePatient);
 
   // Confirm modal buttons
   document.getElementById("confirmResetBtn")?.addEventListener("click", executeReset);

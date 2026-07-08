@@ -1477,6 +1477,111 @@ html {
 }
 .revoke-btn:hover { background: var(--critical-light); color: var(--critical); border-color: var(--hr-mid); }
 
+.discharge-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: var(--font);
+  background: var(--blue-light);
+  color: var(--blue);
+  border: 1px solid #bae6fd;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease-out;
+  white-space: nowrap;
+}
+.discharge-btn:hover    { background: var(--blue); color: #fff; border-color: var(--blue); }
+.discharge-btn:disabled { opacity: 0.6; cursor: default; }
+
+/* ─── ABHA linking (edit modal) ────────────────────────────── */
+.abha-section {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.abha-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+.abha-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 2px 9px;
+  border-radius: 99px;
+  background: var(--bg);
+  color: var(--text-muted);
+  border: 1px solid var(--border-mid);
+}
+.abha-badge.abha-badge-linked {
+  background: var(--normal-light);
+  color: var(--normal);
+  border-color: #a8e6c4;
+}
+.abha-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.abha-row input {
+  flex: 1;
+  padding: 9px 12px;
+  font-size: 0.85rem;
+  font-family: var(--font-mono, monospace);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+.abha-row input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-light); outline: none; }
+.abha-otp-row { margin-top: 10px; }
+
+.abha-link-btn, .abha-verify-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 9px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: var(--font);
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s ease-out;
+}
+.abha-link-btn:hover, .abha-verify-btn:hover { opacity: 0.88; }
+.abha-link-btn:disabled, .abha-verify-btn:disabled { opacity: 0.55; cursor: default; }
+
+.abha-cancel-btn {
+  padding: 9px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: var(--font);
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.abha-cancel-btn:hover { background: var(--bg); }
+
+.abha-hint {
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
 /* ─── Share URL display in modal ─────────────────────────── */
 .share-url-wrap {
   display: flex;

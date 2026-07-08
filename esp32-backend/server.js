@@ -47,6 +47,9 @@ mongoose.connect(process.env.MONGO_URI)
 const SensorData    = require("./models/SensorData");
 const Patient       = require("./models/Patient");
 const analyzeHealth = require("./fusion/healthFusion");
+const { generateDischargeSummary } = require("./utils/pdf");
+const { buildBundle }              = require("./utils/fhir");
+const abdm                         = require("./utils/abdm");
 
 // ─── Signal Processing (server-side) ─────────────────────────────────────────
 // Per-device sliding windows for moving average
@@ -612,6 +615,127 @@ app.delete("/api/patients/:id/viewer-link", protect, authorizeRoles("admin", "do
   } catch (err) {
     console.error("[DELETE /api/patients/:id/viewer-link]", err);
     res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ABHA / ABDM integration
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Stage 1 — link the patient's ABHA number (this section).
+// Stage 2 — nothing to build; SensorData already accumulates through the stay.
+// Stage 3 — push on discharge (see POST /api/patients/:id/discharge below).
+
+// ─── POST /api/patients/:id/abha/link ─────────────────────────────────────────
+// Stage 1a. Nurse/doctor enters the patient's 14-digit ABHA number. Stores it
+// on the Patient record and asks the ABDM gateway to send the patient an OTP
+// on their Aadhaar-linked phone. Returns a txnId used to confirm the OTP.
+app.post("/api/patients/:id/abha/link", protect, authorizeRoles("admin", "doctor", "nurse"), async (req, res) => {
+  try {
+    const { abhaNumber } = req.body;
+    const cleaned = (abhaNumber || "").replace(/[\s-]/g, "");
+    if (!/^\d{14}$/.test(cleaned)) {
+      return res.status(422).json({ error: "ABHA number must be 14 digits." });
+    }
+
+    const patient = await Patient.findOne({ patient_id: req.params.id });
+    if (!patient) return res.status(404).json({ error: "Patient not found" });
+
+    patient.abhaNumber       = cleaned;
+    patient.abhaLinked       = false;
+    patient.abhaConsentToken = null;
+    patient.abhaLinkedAt     = null;
+
+    const { txnId, demo } = await abdm.initiateCareContextLink(patient);
+    patient.abhaLinkTxnId = txnId;
+    await patient.save();
+
+    res.json({
+      message: demo
+        ? 'OTP sent (demo mode — use "000000" to confirm).'
+        : "OTP sent to the patient's Aadhaar-linked phone.",
+      txnId,
+      demo,
+    });
+  } catch (err) {
+    console.error("[POST /api/patients/:id/abha/link]", err);
+    res.status(500).json({ error: err.message || "Failed to initiate ABHA link." });
+  }
+});
+
+// ─── POST /api/patients/:id/abha/verify-otp ───────────────────────────────────
+// Stage 1b. Confirms the OTP and stores the resulting consent artifact —
+// this is what proves the patient authorised this HIP to push their data.
+app.post("/api/patients/:id/abha/verify-otp", protect, authorizeRoles("admin", "doctor", "nurse"), async (req, res) => {
+  try {
+    const { otp } = req.body;
+    if (!otp) return res.status(422).json({ error: "OTP is required." });
+
+    const patient = await Patient.findOne({ patient_id: req.params.id }).select("+abhaLinkTxnId +abhaConsentToken");
+    if (!patient) return res.status(404).json({ error: "Patient not found" });
+    if (!patient.abhaLinkTxnId) {
+      return res.status(400).json({ error: "No pending ABHA link for this patient. Start over." });
+    }
+
+    const { consentToken } = await abdm.confirmCareContextLink(patient.abhaLinkTxnId, otp);
+
+    patient.abhaLinked       = true;
+    patient.abhaConsentToken = consentToken;
+    patient.abhaLinkedAt     = new Date();
+    patient.abhaLinkTxnId    = null;
+    await patient.save();
+
+    io.emit("patient-profile-update", { patient_id: req.params.id });
+    res.json({ message: "ABHA linked successfully.", abhaLinked: true });
+  } catch (err) {
+    if (err.code === "INVALID_OTP") {
+      return res.status(422).json({ error: "Incorrect OTP." });
+    }
+    console.error("[POST /api/patients/:id/abha/verify-otp]", err);
+    res.status(500).json({ error: err.message || "Failed to verify OTP." });
+  }
+});
+
+// ─── POST /api/patients/:id/discharge ─────────────────────────────────────────
+// Stage 3. "Discharge & Export" — the single action that:
+//   1. Generates a PDF discharge summary and streams it back to the caller
+//   2. If the patient has a verified ABHA link, serialises the same stay's
+//      vitals into a FHIR Bundle and pushes it to the ABDM Health Repository
+//      asynchronously (fire-and-forget — a failed push never blocks the PDF)
+// Access: doctor and admin only.
+app.post("/api/patients/:id/discharge", protect, authorizeRoles("admin", "doctor"), async (req, res) => {
+  try {
+    const patient = await Patient.findOne({ patient_id: req.params.id }).select("+abhaConsentToken").lean();
+    if (!patient) return res.status(404).json({ error: "Patient not found" });
+
+    const since = patient.admittedAt || new Date(0);
+    const [readings, alerts] = await Promise.all([
+      SensorData.find({ patient_id: patient.patient_id, time: { $gte: since } }).sort({ time: 1 }).lean(),
+      Alert.find({ patient_id: patient.patient_id, createdAt: { $gte: since } }).sort({ createdAt: -1 }).lean(),
+    ]);
+
+    // ── Fire the ABHA push in the background — does not block the PDF ──────
+    if (patient.abhaNumber && patient.abhaLinked && patient.abhaConsentToken) {
+      const bundle = buildBundle(patient, readings);
+      abdm.pushHealthRecord(patient, bundle)
+        .then(result => {
+          io.emit("abha-push-result", { patient_id: patient.patient_id, ...result });
+          if (!result.success) console.error(`[abdm] push failed for ${patient.patient_id}:`, result.error);
+        })
+        .catch(err => console.error(`[abdm] push threw for ${patient.patient_id}:`, err.message));
+    }
+
+    // ── Generate and return the PDF synchronously ───────────────────────────
+    const pdfBuffer = await generateDischargeSummary(patient, readings, alerts);
+    res.set({
+      "Content-Type":        "application/pdf",
+      "Content-Disposition": `attachment; filename="discharge-${patient.patient_id}.pdf"`,
+      "X-Abha-Push":         patient.abhaNumber && patient.abhaLinked ? "queued" : "skipped-no-link",
+    });
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error("[POST /api/patients/:id/discharge]", err);
+    res.status(500).json({ error: "Failed to generate discharge summary." });
   }
 });
 
