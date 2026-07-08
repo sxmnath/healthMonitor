@@ -399,9 +399,9 @@ app.get("/api/patients/:id", protect, async (req, res) => {
       ...patient,
       vitals,
       fusion: vitals ? analyzeHealth(vitals.heartRate, vitals.spo2, vitals.temperatureF, {
-        activityScore:  latest?.activityScore,
-        posture:        latest?.posture,
-        motionDetected: latest?.motionDetected,
+        activityScore:  latest.activityScore,
+        posture:        latest.posture,
+        motionDetected: latest.motionDetected,
       }) : null,
       status: vitals ? getStatus(vitals) : "unknown",
       lastSeen: latest?.time || null,
@@ -674,11 +674,6 @@ app.get("/api/dashboard", protect, async (req, res) => {
         spo2:         latest.spo2,
         temperatureF: latest.temperatureF,
       },
-      // ECG + motion fields — poll fallback parity with the WS "vitals-update" payload
-      ecgHeartRate:   latest.ecgHeartRate,
-      activityScore:  latest.activityScore,
-      posture:        latest.posture,
-      motionDetected: latest.motionDetected,
       fusion,
       time: latest.time,
     });
@@ -840,7 +835,7 @@ function demoPatients() {
   ];
   return list.map(p => ({
     ...p,
-    fusion:   analyzeHealth(p.vitals.heartRate, p.vitals.spo2, p.vitals.temperatureF),
+    fusion:   analyzeHealth(p.vitals.heartRate, p.vitals.spo2, p.vitals.temperatureF, {}),
     status:   getStatus(p.vitals),
     lastSeen: new Date(),
   }));
