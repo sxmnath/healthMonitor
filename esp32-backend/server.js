@@ -8,6 +8,7 @@ const cors       = require("cors");
 const http       = require("http");
 const path       = require("path");
 const crypto     = require("crypto");
+const jwt        = require("jsonwebtoken");
 const { Server } = require("socket.io");
 const User          = require("./models/User");
 const Alert         = require("./models/Alert");
@@ -627,9 +628,21 @@ app.delete("/api/patients/:id/viewer-link", protect, authorizeRoles("admin", "do
 // Stage 3 — push on discharge (see POST /api/patients/:id/discharge below).
 
 // ─── POST /api/patients/:id/abha/link ─────────────────────────────────────────
-// Stage 1a. Nurse/doctor enters the patient's 14-digit ABHA number. Stores it
-// on the Patient record and asks the ABDM gateway to send the patient an OTP
-// on their Aadhaar-linked phone. Returns a txnId used to confirm the OTP.
+// Stage 1a. Nurse/doctor enters the patient's 14-digit ABHA number. Asks the
+// ABDM gateway to send the patient an OTP on their Aadhaar-linked phone, then
+// hands the browser a short-lived signed "linkToken" (JWT, 10 min expiry)
+// carrying the ABDM transaction id. The browser echoes it back on verify.
+//
+// This is deliberately NOT persisted to MongoDB as an intermediate step.
+// An earlier version stored the transaction id on the Patient document
+// between these two calls and hit a real, reproducible bug — the write
+// wasn't reliably visible to the very next read (root cause was never
+// fully pinned down: candidates were a select:false field on a
+// document-then-.save() footgun, and possibly duplicate patient_id docs
+// from earlier seeding). Rather than keep chasing that, the transaction
+// state for a 10-minute OTP window doesn't need a database at all — a
+// signed token the client already has to send back is simpler and
+// removes the entire class of bug.
 app.post("/api/patients/:id/abha/link", protect, authorizeRoles("admin", "doctor", "nurse"), async (req, res) => {
   try {
     const { abhaNumber } = req.body;
@@ -643,33 +656,24 @@ app.post("/api/patients/:id/abha/link", protect, authorizeRoles("admin", "doctor
 
     const { txnId, demo } = await abdm.initiateCareContextLink({ ...existing, abhaNumber: cleaned });
 
-    // Atomic $set — deliberately NOT findOne() + mutate + .save() here.
-    // abhaLinkTxnId/abhaConsentToken have select:false, and mutating a
-    // select:false field on a document loaded without that field in its
-    // projection is a known Mongoose footgun: the write can silently fail
-    // to persist because the path was never part of the document's loaded
-    // state. findOneAndUpdate sends a plain MongoDB update and sidesteps
-    // that entirely — this is also what every other route here already does.
-    const patient = await Patient.findOneAndUpdate(
+    // Persist the (unverified) ABHA number so it shows up in the UI —
+    // this write has no read-immediately-after dependency, so it's safe.
+    await Patient.findOneAndUpdate(
       { patient_id: req.params.id },
-      {
-        $set: {
-          abhaNumber:       cleaned,
-          abhaLinked:       false,
-          abhaConsentToken: null,
-          abhaLinkedAt:     null,
-          abhaLinkTxnId:    txnId,
-        },
-      },
-      { new: true }
+      { $set: { abhaNumber: cleaned, abhaLinked: false, abhaConsentToken: null, abhaLinkedAt: null } }
     );
-    if (!patient) return res.status(404).json({ error: "Patient not found" });
+
+    const linkToken = jwt.sign(
+      { patient_id: req.params.id, txnId, abhaNumber: cleaned },
+      process.env.JWT_SECRET,
+      { expiresIn: "10m" }
+    );
 
     res.json({
       message: demo
         ? 'OTP sent (demo mode — use "000000" to confirm).'
         : "OTP sent to the patient's Aadhaar-linked phone.",
-      txnId,
+      linkToken,
       demo,
     });
   } catch (err) {
@@ -679,35 +683,41 @@ app.post("/api/patients/:id/abha/link", protect, authorizeRoles("admin", "doctor
 });
 
 // ─── POST /api/patients/:id/abha/verify-otp ───────────────────────────────────
-// Stage 1b. Confirms the OTP and stores the resulting consent artifact —
-// this is what proves the patient authorised this HIP to push their data.
+// Stage 1b. Verifies the linkToken from Stage 1a (proves this OTP belongs to
+// this patient and hasn't expired) and confirms the OTP itself with ABDM.
+// On success, stores the consent artifact — proof the patient authorised
+// this HIP to push their data.
 app.post("/api/patients/:id/abha/verify-otp", protect, authorizeRoles("admin", "doctor", "nurse"), async (req, res) => {
   try {
-    const { otp } = req.body;
-    if (!otp) return res.status(422).json({ error: "OTP is required." });
+    const { otp, linkToken } = req.body;
+    if (!otp)       return res.status(422).json({ error: "OTP is required." });
+    if (!linkToken) return res.status(400).json({ error: "No pending ABHA link for this patient. Start over." });
 
-    // Reading a select:false field back requires the +field override — that
-    // part is fine. It's writing it back via a mutated .save() that's the
-    // footgun (see the /abha/link route above for why); use $set instead.
-    const patient = await Patient.findOne({ patient_id: req.params.id }).select("+abhaLinkTxnId");
-    if (!patient) return res.status(404).json({ error: "Patient not found" });
-    if (!patient.abhaLinkTxnId) {
-      return res.status(400).json({ error: "No pending ABHA link for this patient. Start over." });
+    let payload;
+    try {
+      payload = jwt.verify(linkToken, process.env.JWT_SECRET);
+    } catch (e) {
+      return res.status(400).json({ error: "ABHA link expired or invalid. Start over." });
+    }
+    if (payload.patient_id !== req.params.id) {
+      return res.status(400).json({ error: "Link token does not match this patient. Start over." });
     }
 
-    const { consentToken } = await abdm.confirmCareContextLink(patient.abhaLinkTxnId, otp);
+    const { consentToken } = await abdm.confirmCareContextLink(payload.txnId, otp);
 
-    await Patient.findOneAndUpdate(
+    const patient = await Patient.findOneAndUpdate(
       { patient_id: req.params.id },
       {
         $set: {
+          abhaNumber:       payload.abhaNumber,
           abhaLinked:       true,
           abhaConsentToken: consentToken,
           abhaLinkedAt:     new Date(),
-          abhaLinkTxnId:    null,
         },
-      }
+      },
+      { new: true }
     );
+    if (!patient) return res.status(404).json({ error: "Patient not found" });
 
     io.emit("patient-profile-update", { patient_id: req.params.id });
     res.json({ message: "ABHA linked successfully.", abhaLinked: true });

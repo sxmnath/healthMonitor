@@ -35,7 +35,6 @@ const PatientSchema = new mongoose.Schema({
   // see POST /api/patients/:id/abha/link and /abha/verify-otp in server.js.
   abhaNumber:        { type: String, default: null, trim: true },
   abhaLinked:        { type: Boolean, default: false },
-  abhaLinkTxnId:     { type: String, default: null, select: false }, // ABDM txn id, live only during OTP step
   abhaConsentToken:  { type: String, default: null, select: false }, // signed consent artifact once linked
   abhaLinkedAt:      { type: Date, default: null },
 

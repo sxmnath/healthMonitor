@@ -796,6 +796,8 @@ function renderAbhaSection() {
   }
 }
 
+let _abhaLinkToken = null; // short-lived signed token from /abha/link, echoed back on verify
+
 async function linkAbha() {
   const pid = PAGE_PATIENT_ID;
   const abhaNumber = document.getElementById("f-abhaNumber")?.value?.trim().replace(/[\s-]/g, "");
@@ -813,6 +815,8 @@ async function linkAbha() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Failed to initiate link");
+
+    _abhaLinkToken = data.linkToken;
 
     const otpRow = document.getElementById("abhaOtpRow");
     if (otpRow) otpRow.style.display = "flex";
@@ -834,18 +838,19 @@ async function verifyAbhaOtp() {
   const pid = PAGE_PATIENT_ID;
   const otp = document.getElementById("f-abhaOtp")?.value?.trim();
   if (!pid || !otp) { showToast("Enter the OTP first.", true); return; }
+  if (!_abhaLinkToken) { showToast("No pending ABHA link — click Link ABHA again.", true); return; }
 
   const btn = document.getElementById("abhaVerifyBtn");
   try {
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying…'; }
     const res  = await authFetch(`/api/patients/${encodeURIComponent(pid)}/abha/verify-otp`, {
-      method: "POST", body: JSON.stringify({ otp }),
+      method: "POST", body: JSON.stringify({ otp, linkToken: _abhaLinkToken }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Verification failed");
 
     showToast("ABHA linked successfully.");
-    cancelAbhaLink(); // hide the OTP row
+    cancelAbhaLink(); // hide the OTP row, clear the token
     await loadPatientProfile(); // refresh badges everywhere
   } catch (e) {
     console.error("[verifyAbhaOtp]", e);
@@ -856,6 +861,7 @@ async function verifyAbhaOtp() {
 }
 
 function cancelAbhaLink() {
+  _abhaLinkToken = null;
   const row = document.getElementById("abhaOtpRow");
   if (row) row.style.display = "none";
   const otpInput = document.getElementById("f-abhaOtp");
