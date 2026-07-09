@@ -620,6 +620,77 @@ body {
   50%     { box-shadow: 0 0 0 4px rgba(20,184,166,0); }
 }
 
+/* ─── Live ECG Waveform ────────────────────────────────── */
+.ecg-waveform-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 3px solid #e8547a;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 16px 18px 14px;
+  margin-top: 14px;
+}
+.ecg-waveform-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.ecg-waveform-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.ecg-waveform-meta { font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono, monospace); }
+
+.live-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--border-mid);
+  transition: background 0.3s ease;
+}
+.live-dot.live-dot-on {
+  background: #e8547a;
+  animation: livePulse 1.3s ease-in-out infinite;
+}
+.live-dot.live-dot-off { background: var(--border-mid); }
+@keyframes livePulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(232,84,122,0.4); }
+  50%     { box-shadow: 0 0 0 5px rgba(232,84,122,0); }
+}
+
+.ecg-waveform-canvas-wrap {
+  position: relative;
+  height: 160px;
+  border-radius: var(--radius-sm);
+  background: #fff8fa;
+  overflow: hidden;
+}
+#ecgWaveformCanvas { display: block; width: 100%; height: 100%; transition: opacity 0.3s ease; }
+
+.ecg-waveform-empty {
+  position: absolute; inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  text-align: center;
+  padding: 0 20px;
+  background: #fff8fa;
+}
+.ecg-waveform-empty i { font-size: 1.4rem; color: var(--border-mid); }
+
 /* ─── Charts Panel ────────────────────────────────────── */
 .charts-panel {
   background: var(--surface);

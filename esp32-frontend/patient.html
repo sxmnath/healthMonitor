@@ -244,6 +244,24 @@
 
           </div>
 
+          <!-- Live ECG Waveform (Serial-Plotter-style, refreshes ~every 5s with firmware's latest 1s sample window) -->
+          <div class="ecg-waveform-card" id="ecgWaveformCard">
+            <div class="ecg-waveform-header">
+              <div class="ecg-waveform-title">
+                <span class="live-dot" id="ecgLiveDot"></span>
+                Live ECG Waveform
+              </div>
+              <span class="ecg-waveform-meta" id="ecgWaveformMeta">Waiting for signal…</span>
+            </div>
+            <div class="ecg-waveform-canvas-wrap">
+              <canvas id="ecgWaveformCanvas"></canvas>
+              <div class="ecg-waveform-empty" id="ecgWaveformEmpty">
+                <i class="fa-solid fa-wave-square"></i>
+                <p>No live ECG signal — attach electrodes to see the waveform.</p>
+              </div>
+            </div>
+          </div>
+
           <!-- Charts -->
           <div class="charts-panel">
             <div class="charts-header">

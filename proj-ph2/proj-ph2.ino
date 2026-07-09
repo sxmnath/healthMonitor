@@ -48,6 +48,13 @@ unsigned long _lastPeakMs = 0;
 // Primary HR output — -1 = leads off or no valid reading
 int ecgHeartRate = -1;
 
+// Raw waveform buffer — the last 1-second window of raw AD8232 samples,
+// captured alongside the existing R-peak detection loop below. Sent to the
+// server each POST cycle so the web dashboard can render a live scrolling
+// ECG trace (Serial-Plotter-style), separate from the derived BPM value.
+int  ecgWaveform[ECG_SAMPLES];
+bool ecgWaveformValid = false;  // false when leads are off — buffer is stale, don't send it
+
 /* -------------------- MPU6050 VARIABLES -------------------- */
 // Raw sensor readings
 float accelX = 0, accelY = 0, accelZ = 0;  // g (gravity units)
@@ -78,11 +85,13 @@ void sampleECG() {
     ecgHeartRate = -1;
     _lastPeakMs  = 0;
     _ecgHigh     = false;
+    ecgWaveformValid = false;   // leads off — don't send a stale/flat buffer
     return;
   }
 
   for (int i = 0; i < ECG_SAMPLES; i++) {
     int sample = analogRead(ECG_PIN);
+    ecgWaveform[i] = sample;    // buffered for the live waveform display
 
     if (!_ecgHigh && sample > ECG_THRESHOLD) {
       _ecgHigh = true;
@@ -99,6 +108,7 @@ void sampleECG() {
 
     delay(ECG_SAMPLE_MS);
   }
+  ecgWaveformValid = true;
 
   if (_lastPeakMs > 0 && (millis() - _lastPeakMs) > 3000) {
     ecgHeartRate = -1;
@@ -148,6 +158,23 @@ void readMPU() {
   if      (accelZ < -0.5) posture = "supine";
   else if (accelX >  0.8) posture = "lateral";
   else                    posture = "upright";
+}
+
+/* ================================================================
+   buildEcgWaveformJson()
+   Serialises ecgWaveform[] to a JSON array string, e.g. "[512,514,...]".
+   Returns "[]" when the buffer isn't valid (leads off) — the server/
+   dashboard already treat an empty array as "no live signal".
+   ================================================================ */
+String buildEcgWaveformJson() {
+  if (!ecgWaveformValid) return "[]";
+  String out = "[";
+  for (int i = 0; i < ECG_SAMPLES; i++) {
+    out += String(ecgWaveform[i]);
+    if (i < ECG_SAMPLES - 1) out += ",";
+  }
+  out += "]";
+  return out;
 }
 
 /* -------------------- SETUP -------------------- */
@@ -277,6 +304,8 @@ void loop() {
     jsonData += "\"activityScore\":" + String(activityScore, 1)     + ",";
     jsonData += "\"posture\":\""     + posture                      + "\",";
     jsonData += "\"motionDetected\":" + String(motionDetected ? "true" : "false") + ",";
+    jsonData += "\"ecgWaveform\":"   + buildEcgWaveformJson()       + ",";
+    jsonData += "\"ecgSampleRate\":" + String(1000 / ECG_SAMPLE_MS) + ",";
     jsonData += "\"deviceId\":\"ESP32_01\"";
     jsonData += "}";
 

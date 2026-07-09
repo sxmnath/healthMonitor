@@ -256,7 +256,7 @@ app.post("/data", async (req, res) => {
     // Destructure all fields — existing vitals + ECG + MPU6050
     const {
       deviceId, heartRate, spo2, temperature,
-      ecgHeartRate,
+      ecgHeartRate, ecgWaveform, ecgSampleRate,
       accelX, accelY, accelZ,
       gyroX,  gyroY,  gyroZ,
       activityScore, posture, motionDetected,
@@ -317,6 +317,21 @@ app.post("/data", async (req, res) => {
       fusion,
       time:         doc.time,
     });
+
+    // ── Live ECG waveform relay (Serial-Plotter-style trace) ────────────────
+    // Raw AD8232 samples from the firmware's most recent 1-second sampling
+    // window (~50Hz). Deliberately NOT written to SensorData — persisting
+    // raw waveform samples at this resolution would balloon document size
+    // for something that's only useful live, on screen, right now. This is
+    // a pure relay: firmware → server → connected staff browsers.
+    if (Array.isArray(ecgWaveform) && ecgWaveform.length > 0) {
+      io.to(patient.patient_id).emit("ecg-waveform", {
+        patient_id: patient.patient_id,
+        samples:    ecgWaveform.map(Number),
+        sampleRate: ecgSampleRate != null ? Number(ecgSampleRate) : 50,
+        time:       doc.time,
+      });
+    }
 
     // ── Viewer room broadcast (safe subset only — no clinical details) ──────
     io.to(`viewer:${patient.patient_id}`).emit("vitals-update", {

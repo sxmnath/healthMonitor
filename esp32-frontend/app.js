@@ -397,6 +397,103 @@ function syncBands(chart) {
   chart.data.datasets[1].data = Array(len).fill(high);  // bandHigh
 }
 
+// ── Live ECG Waveform (Serial-Plotter-style canvas trace) ────────────────────────
+// Raw AD8232 samples relayed live via the "ecg-waveform" WS event — a plain
+// <canvas> rather than Chart.js, since this is a raw autoscaled trace redrawn
+// wholesale on each burst rather than a sparse time-series line.
+let _ecgWaveformStaleTimer = null;
+
+function initEcgWaveformCanvas() {
+  const canvas = document.getElementById("ecgWaveformCanvas");
+  const wrap   = document.getElementById("ecgWaveformCanvas")?.parentElement;
+  if (!canvas || !wrap) return;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = wrap.getBoundingClientRect();
+  canvas.width  = Math.max(1, Math.floor(rect.width  * dpr));
+  canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+  canvas.style.width  = rect.width  + "px";
+  canvas.style.height = rect.height + "px";
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawEcgGrid(ctx, rect.width, rect.height);
+}
+
+function drawEcgGrid(ctx, w, h) {
+  ctx.clearRect(0, 0, w, h);
+  ctx.strokeStyle = "rgba(232, 84, 122, 0.12)";
+  ctx.lineWidth = 1;
+  const cols = 12, rows = 6;
+  for (let i = 0; i <= cols; i++) {
+    const x = (w / cols) * i;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+  }
+  for (let i = 0; i <= rows; i++) {
+    const y = (h / rows) * i;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+}
+
+function renderEcgWaveform(data) {
+  const canvas = document.getElementById("ecgWaveformCanvas");
+  const empty  = document.getElementById("ecgWaveformEmpty");
+  const dot    = document.getElementById("ecgLiveDot");
+  const meta   = document.getElementById("ecgWaveformMeta");
+  if (!canvas) return;
+
+  const samples = Array.isArray(data.samples) ? data.samples : [];
+
+  if (_ecgWaveformStaleTimer) clearTimeout(_ecgWaveformStaleTimer);
+
+  if (!samples.length) {
+    // Leads off — mirrors the HR card's disconnected treatment
+    if (empty)  empty.style.display  = "flex";
+    if (canvas) canvas.style.opacity = "0.15";
+    if (dot)    dot.className = "live-dot live-dot-off";
+    if (meta)   meta.textContent = "No signal — leads off";
+    return;
+  }
+
+  if (empty)  empty.style.display  = "none";
+  if (canvas) canvas.style.opacity = "1";
+  if (dot)    dot.className = "live-dot live-dot-on";
+  if (meta)   meta.textContent = `${data.sampleRate || 50} Hz · updated ${new Date(data.time || Date.now()).toLocaleTimeString()}`;
+
+  const wrap = canvas.parentElement;
+  const rect = wrap.getBoundingClientRect();
+  const dpr  = window.devicePixelRatio || 1;
+  if (canvas.width !== Math.floor(rect.width * dpr)) initEcgWaveformCanvas();
+
+  const ctx = canvas.getContext("2d");
+  const w = rect.width, h = rect.height;
+  drawEcgGrid(ctx, w, h);
+
+  const min = Math.min(...samples);
+  const max = Math.max(...samples);
+  const pad = Math.max(20, (max - min) * 0.15); // headroom so peaks don't clip
+  const lo  = min - pad, hi = max + pad;
+  const range = Math.max(1, hi - lo);
+
+  ctx.strokeStyle = "#e8547a";
+  ctx.lineWidth = 2;
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  samples.forEach((v, i) => {
+    const x = samples.length > 1 ? (i / (samples.length - 1)) * w : w / 2;
+    const y = h - ((v - lo) / range) * h;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // If no new burst arrives for a while (WS hiccup, device offline), fall
+  // back to the leads-off/no-signal state rather than showing a frozen trace.
+  _ecgWaveformStaleTimer = setTimeout(() => {
+    if (dot)  dot.className = "live-dot live-dot-off";
+    if (meta) meta.textContent = "No recent signal";
+    if (canvas) canvas.style.opacity = "0.15";
+    if (empty) empty.style.display = "flex";
+  }, 12000);
+}
+
 function initCharts() {
   hrChart   = makeChart("hrChart",   "Heart Rate (ECG)", "#5b8dee", { yLabel: "bpm", yMin: 30,  yMax: 200, tickSuffix: " bpm", normalLow: 60,  normalHigh: 100 });
   spo2Chart = makeChart("spo2Chart", "SpO₂",        "#4ab3c8", { yLabel: "%",   yMin: 80,  yMax: 100, tickSuffix: "%",    normalLow: 95,  normalHigh: 100 });
@@ -1014,6 +1111,13 @@ document.addEventListener("DOMContentLoaded", () => {
     // AI insights → merged panel
     if (doc.fusion?.indicators) updateAIInsights(doc.fusion.indicators);
   });
+  socket.on("ecg-waveform", data => {
+    if (data.patient_id && data.patient_id !== PAGE_PATIENT_ID) return;
+    renderEcgWaveform(data);
+  });
+
+  initEcgWaveformCanvas();
+  window.addEventListener("resize", initEcgWaveformCanvas);
 
   // Poll fallback every 5s
   setInterval(loadDashboard, 5000);
