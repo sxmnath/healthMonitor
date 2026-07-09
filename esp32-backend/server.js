@@ -47,6 +47,15 @@ mongoose.connect(process.env.MONGO_URI)
 
 const SensorData    = require("./models/SensorData");
 const Patient       = require("./models/Patient");
+
+// Startup sanity check — this exact class of bug (routes updated, model
+// file not redeployed alongside them) has bitten this ABHA feature twice
+// already. Mongoose silently drops $set keys that aren't in the schema
+// instead of erroring, so it's invisible until you check for it explicitly.
+{
+  const abhaFields = Object.keys(Patient.schema.paths).filter(p => p.startsWith("abha"));
+  console.log(`[startup] Patient schema ABHA fields loaded: ${abhaFields.length ? abhaFields.join(", ") : "NONE — Patient.js is stale, redeploy it"}`);
+}
 const analyzeHealth = require("./fusion/healthFusion");
 const { generateDischargeSummary } = require("./utils/pdf");
 const { buildBundle }              = require("./utils/fhir");
@@ -719,7 +728,11 @@ app.post("/api/patients/:id/abha/verify-otp", protect, authorizeRoles("admin", "
     );
     if (!patient) return res.status(404).json({ error: "Patient not found" });
 
-    console.log(`[abha][verify] persisted for ${req.params.id}: abhaLinked=${patient.abhaLinked} abhaNumber=${patient.abhaNumber}`);
+    console.log(`[abha][verify] schema has abhaLinked path: ${!!Patient.schema.path("abhaLinked")}`);
+    console.log(`[abha][verify] raw document returned:`, JSON.stringify(patient));
+    console.log(`[abha][verify] matched filter { patient_id: "${req.params.id}" } -> _id: ${patient._id}`);
+    const dupeCount = await Patient.countDocuments({ patient_id: req.params.id });
+    console.log(`[abha][verify] documents matching patient_id="${req.params.id}": ${dupeCount}`);
 
     io.emit("patient-profile-update", { patient_id: req.params.id });
     // Return the fields the client needs directly — findOneAndUpdate already
