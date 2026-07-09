@@ -719,6 +719,8 @@ app.post("/api/patients/:id/abha/verify-otp", protect, authorizeRoles("admin", "
     );
     if (!patient) return res.status(404).json({ error: "Patient not found" });
 
+    console.log(`[abha][verify] persisted for ${req.params.id}: abhaLinked=${patient.abhaLinked} abhaNumber=${patient.abhaNumber}`);
+
     io.emit("patient-profile-update", { patient_id: req.params.id });
     // Return the fields the client needs directly — findOneAndUpdate already
     // gives us the authoritative post-write document, so there's no reason

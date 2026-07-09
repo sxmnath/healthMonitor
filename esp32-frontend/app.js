@@ -868,6 +868,7 @@ async function verifyAbhaOtp() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Verification failed");
+    console.log("[verifyAbhaOtp] server response:", data);
 
     // Apply the response directly — it's the authoritative post-write
     // document from the server's own update, so the UI is correct
