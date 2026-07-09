@@ -869,9 +869,17 @@ async function verifyAbhaOtp() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Verification failed");
 
+    // Apply the response directly — it's the authoritative post-write
+    // document from the server's own update, so the UI is correct
+    // immediately without depending on a follow-up GET to catch up.
+    patientProfile.abhaLinked   = data.abhaLinked;
+    patientProfile.abhaNumber   = data.abhaNumber;
+    patientProfile.abhaLinkedAt = data.abhaLinkedAt;
+    renderAbhaSection();
+
     showToast("ABHA linked successfully.");
     cancelAbhaLink(); // hide the OTP row, clear the token
-    await loadPatientProfile(); // refresh badges everywhere
+    loadPatientProfile().catch(() => {}); // best-effort background sync for the rest of the profile
   } catch (e) {
     console.error("[verifyAbhaOtp]", e);
     showToast("Verification failed: " + e.message, true);

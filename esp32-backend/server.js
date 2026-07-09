@@ -720,7 +720,15 @@ app.post("/api/patients/:id/abha/verify-otp", protect, authorizeRoles("admin", "
     if (!patient) return res.status(404).json({ error: "Patient not found" });
 
     io.emit("patient-profile-update", { patient_id: req.params.id });
-    res.json({ message: "ABHA linked successfully.", abhaLinked: true });
+    // Return the fields the client needs directly — findOneAndUpdate already
+    // gives us the authoritative post-write document, so there's no reason
+    // to make the browser re-fetch via GET to discover its own write.
+    res.json({
+      message:      "ABHA linked successfully.",
+      abhaLinked:   patient.abhaLinked,
+      abhaNumber:   patient.abhaNumber,
+      abhaLinkedAt: patient.abhaLinkedAt,
+    });
   } catch (err) {
     if (err.code === "INVALID_OTP") {
       return res.status(422).json({ error: "Incorrect OTP." });
