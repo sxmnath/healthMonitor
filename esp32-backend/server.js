@@ -28,6 +28,37 @@ app.use("/api/auth", authRouter);
 // ─── Admin Routes ─────────────────────────────────────────────────────────────
 app.use("/api/admin", adminRouter);
 
+// ─── Settings Routes ──────────────────────────────────────────────────────────
+// GET /api/settings — public, no auth.
+// Called on every page load to populate the sidebar hospital name.
+app.get("/api/settings", async (req, res) => {
+  try {
+    const s = await Settings.findById("global").lean();
+    res.json({ hospitalName: s?.hospitalName || "" });
+  } catch (_) {
+    res.json({ hospitalName: "" });   // safe fallback — page still renders
+  }
+});
+
+// PATCH /api/settings — admin only.
+// Body: { hospitalName: string }
+app.patch("/api/settings", protect, authorizeRoles("admin"), async (req, res) => {
+  try {
+    const { hospitalName } = req.body;
+    if (typeof hospitalName !== "string")
+      return res.status(400).json({ error: "hospitalName must be a string" });
+    const s = await Settings.findByIdAndUpdate(
+      "global",
+      { hospitalName: hospitalName.trim().slice(0, 80), updatedAt: new Date() },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    res.json({ hospitalName: s.hospitalName });
+  } catch (err) {
+    console.error("[PATCH /api/settings]", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 app.use(express.static(path.join(__dirname, "../esp32-frontend"), { index: false }));
 
 // ─── Startup guards ──────────────────────────────────────────────────────────
@@ -47,6 +78,7 @@ mongoose.connect(process.env.MONGO_URI)
 
 const SensorData    = require("./models/SensorData");
 const Patient       = require("./models/Patient");
+const Settings      = require("./models/Settings");
 
 // Startup sanity check — this exact class of bug (routes updated, model
 // file not redeployed alongside them) has bitten this ABHA feature twice

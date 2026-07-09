@@ -146,13 +146,6 @@ function applyPatientPageGates() {
   // ── Reset All Data button — doctor/admin only ─────────────────────────────
   gateElement("resetDataBtn",    Role.ADMIN, Role.DOCTOR);
 
-  // ── Discharge & Export — doctor/admin only (matches backend route) ────────
-  gateElement("dischargeBtn",    Role.ADMIN, Role.DOCTOR);
-
-  // ── ABHA linking — admin/doctor/nurse, same as admission intake tasks ─────
-  gateElement("abhaLinkBtn",     Role.ADMIN, Role.DOCTOR, Role.NURSE);
-  gateElement("abhaVerifyBtn",   Role.ADMIN, Role.DOCTOR, Role.NURSE);
-
   // ── Role indicator on page (optional debug badge) ────────────────────────
   // If a role badge element exists, populate it
   const badge = document.getElementById("currentRoleBadge");
@@ -165,6 +158,28 @@ function applyPatientPageGates() {
 function applyWardPageGates() {
   // No role-gated elements on ward overview yet
 }
+
+// ── Hospital name ─────────────────────────────────────────────────────────────
+// Fetches /api/settings and updates every .logo-text element on the page.
+// Falls back silently — sidebar keeps showing "healthMonitor" if the request
+// fails or the hospital name has not been set yet.
+async function loadHospitalName() {
+  try {
+    const res  = await fetch("/api/settings");
+    if (!res.ok) return;
+    const data = await res.json();
+    const name = (data.hospitalName || "").trim();
+    if (!name) return;
+    document.querySelectorAll(".logo-text").forEach(el => {
+      el.textContent = name;
+    });
+  } catch (_) {
+    // Non-fatal — sidebar just stays as "healthMonitor"
+  }
+}
+
+// Auto-apply on every page that includes hm-auth.js
+document.addEventListener("DOMContentLoaded", loadHospitalName);
 
 // ── Logout ────────────────────────────────────────────────────────────────────
 function logout() {

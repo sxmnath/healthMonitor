@@ -168,6 +168,46 @@
     .a-toast.show { opacity: 1; transform: translateY(0); }
     .a-toast.ok  { background: var(--normal-light);   color: var(--normal);   border: 1px solid #a8e6c4; }
     .a-toast.bad { background: var(--critical-light); color: var(--critical); border: 1px solid #f4b8b8; }
+    /* Hospital settings card */
+    .settings-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-md); box-shadow: var(--shadow-sm);
+      padding: 20px 24px; margin-bottom: 20px;
+    }
+    .settings-card-title {
+      font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; color: var(--text-muted);
+      display: flex; align-items: center; gap: 7px; margin-bottom: 16px;
+    }
+    .settings-card-title i { color: var(--sidebar-accent); }
+    .settings-row {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    }
+    .settings-label {
+      font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);
+      white-space: nowrap;
+    }
+    .settings-input {
+      flex: 1; min-width: 200px; max-width: 360px;
+      font-family: var(--font); font-size: 0.88rem;
+      padding: 8px 12px; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); background: var(--surface);
+      color: var(--text-primary); outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .settings-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-light); }
+    .settings-hint {
+      font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;
+    }
+    .btn-settings-save {
+      display: flex; align-items: center; gap: 6px;
+      font-family: var(--font); font-size: 0.82rem; font-weight: 600;
+      padding: 8px 16px; border-radius: var(--radius-sm); border: none;
+      background: var(--sidebar-accent); color: #fff; cursor: pointer;
+      transition: opacity 0.15s; white-space: nowrap;
+    }
+    .btn-settings-save:hover   { opacity: 0.88; }
+    .btn-settings-save:disabled { opacity: 0.5; cursor: default; }
   </style>
 </head>
 <body>
@@ -180,7 +220,7 @@
         <span class="logo-text">healthMonitor</span>
         <i class="fa-solid fa-chevron-left collapse-arrow"></i>
       </button>
-      <span class="sidebar-tagline">Real-time patient monitoring</span>
+      <span class="sidebar-tagline">Powered by healthMonitor</span>
     </div>
     <nav class="sidebar-nav">
       <a href="/" class="nav-item" title="Ward Overview">
@@ -226,6 +266,30 @@
       <h1 class="admin-page-title">
         <i class="fa-solid fa-users-gear"></i> User Management
       </h1>
+
+      <!-- Hospital Settings -->
+      <div class="settings-card">
+        <div class="settings-card-title">
+          <i class="fa-solid fa-hospital"></i> Hospital Settings
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="hospitalNameInput">Hospital Name</label>
+          <input
+            type="text"
+            id="hospitalNameInput"
+            class="settings-input"
+            placeholder="e.g. SSKM Hospital, Kolkata"
+            maxlength="80"
+          />
+          <button class="btn-settings-save" id="saveHospitalBtn">
+            <i class="fa-solid fa-check"></i> Save
+          </button>
+        </div>
+        <p class="settings-hint">
+          This name will replace "healthMonitor" in the sidebar across all pages.
+          Leave blank to show "healthMonitor".
+        </p>
+      </div>
 
       <div class="admin-stats">
         <div class="astat">
@@ -430,6 +494,45 @@
     }
   }
 
+  // ── Hospital name settings ─────────────────────────────────────────────────
+  async function loadHospitalSetting() {
+    try {
+      var res  = await fetch("/api/settings");
+      var data = await res.json();
+      var inp  = document.getElementById("hospitalNameInput");
+      if (inp) inp.value = data.hospitalName || "";
+    } catch(_) {}
+  }
+
+  document.getElementById("saveHospitalBtn")?.addEventListener("click", async function() {
+    var btn = document.getElementById("saveHospitalBtn");
+    var inp = document.getElementById("hospitalNameInput");
+    if (!inp) return;
+    var name = inp.value.trim();
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving…';
+    try {
+      var res  = await authFetch("/api/settings", {
+        method: "PATCH", body: JSON.stringify({ hospitalName: name })
+      });
+      var data = await res.json();
+      if (res.ok) {
+        // Update every .logo-text on the page immediately
+        document.querySelectorAll(".logo-text").forEach(function(el) {
+          el.textContent = data.hospitalName || "healthMonitor";
+        });
+        toast("Hospital name " + (data.hospitalName ? "updated to "" + data.hospitalName + """ : "cleared"));
+      } else {
+        toast(data.error || "Failed to save", true);
+      }
+    } catch(_) {
+      toast("Could not reach server", true);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-check"></i> Save';
+    }
+  });
+
   // ── Topbar ─────────────────────────────────────────────────────────────────
   async function loadTopbar() {
     try {
@@ -448,6 +551,7 @@
   // ── Init ───────────────────────────────────────────────────────────────────
   loadTopbar();
   loadUsers();
+  loadHospitalSetting();
   document.getElementById("sidebarToggle")?.addEventListener("click", function() {
     document.getElementById("sidebar")?.classList.toggle("collapsed");
   });
