@@ -195,7 +195,7 @@ function renderVitals(raw, time) {
   updateLiveCharts(chartLabel, hr, spo2v === -1 ? null : spo2v, tempF, raw.isPeak);
   syncChartColors(hr, spo2v, tempF);
 
-  generateAlerts({ heartRate: hr, spo2: spo2v, temperatureF: tempF });
+  generateAlerts({ heartRate: hr, spo2: spo2v, temperatureF: tempF, ecgLeadsOff });
 
   return { hr: ecgLeadsOff ? null : hr, ecgLeadsOff };
 }
@@ -244,6 +244,7 @@ const activeAlerts = new Map();   // keyed vital alerts (real-time, dismissable)
 let   aiInsights   = [];          // latest AI indicator strings from fusion
 
 const ALERT_RULES = [
+  { key: "ecg_leads_off", check: v => v.ecgLeadsOff === true,                                                   severity: "warning",  icon: "fa-hand-pointer",     title: "ECG Leads Off",          detail: () => "Attach electrodes to resume ECG heart rate monitoring" },
   { key: "hr_low",    check: v => v.heartRate != null && v.heartRate < 50,                                      severity: "critical", icon: "fa-heart-crack",      title: "Bradycardia Detected",   detail: v => `Heart rate ${v.heartRate} bpm (threshold: <50 bpm)` },
   { key: "hr_crit",   check: v => v.heartRate != null && v.heartRate > 120,                                     severity: "critical", icon: "fa-heart-crack",      title: "Critical Tachycardia",   detail: v => `Heart rate ${v.heartRate} bpm (threshold: >120 bpm)` },
   { key: "hr_warn",   check: v => v.heartRate != null && v.heartRate > 100 && v.heartRate <= 120,               severity: "warning",  icon: "fa-heart-pulse",      title: "Elevated Heart Rate",    detail: v => `Heart rate ${v.heartRate} bpm (normal: 50–100 bpm)` },

@@ -10,6 +10,7 @@ const path       = require("path");
 const crypto     = require("crypto");
 const jwt        = require("jsonwebtoken");
 const { Server } = require("socket.io");
+const { WebSocketServer } = require("ws");
 const User          = require("./models/User");
 const Alert         = require("./models/Alert");
 const { protect, requireRole, authorizeRoles } = require("./middleware/auth");
@@ -19,6 +20,69 @@ const adminRouter   = require("./routes/admin");
 const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, { cors: { origin: "*" } });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Raw ECG WebSocket ingest (firmware → server)
+// ═══════════════════════════════════════════════════════════════════════════
+// Socket.io (above) is for server→browser only — the ESP32 doesn't speak the
+// Socket.io/Engine.IO handshake protocol, so this is a second, independent
+// WebSocket server on the same HTTP server at a different path (/ecg-stream),
+// using the plain `ws` library the ESP32's WebSockets library can connect to
+// directly. Both can coexist on one http.Server since each only claims
+// upgrade requests matching its own path.
+//
+// Protocol (device → server), all JSON text frames:
+//   1. First message after connecting:  {"deviceId":"ESP32_01"}
+//      → binds this socket to a patient_id for the rest of its lifetime.
+//   2. Every message after that:        {"samples":[...],"sampleRate":50}
+//      → relayed immediately to browsers via the existing Socket.io
+//        "ecg-waveform" event (same one POST /data already emits), so the
+//        frontend needs zero changes — it doesn't know or care which path
+//        delivered the data.
+//
+// This is a genuine push connection: the firmware sends a batch the moment
+// sampleECG() finishes (every ~1-2s, gated by other blocking sensor reads
+// in loop()), instead of waiting for the 5s HTTP POST cycle. POST /data's
+// own ecgWaveform field is left in place as a fallback if this connection
+// is down (device not yet reflashed, WS reconnecting, etc.) — the frontend
+// already treats either source identically.
+const ecgWss = new WebSocketServer({ server, path: "/ecg-stream" });
+
+ecgWss.on("connection", (ws) => {
+  let boundPatientId = null;
+  console.log("[ecg-ws] device connected");
+
+  ws.on("message", async (raw) => {
+    let msg;
+    try { msg = JSON.parse(raw.toString()); } catch { return; }
+
+    // First message — bind this connection to a patient_id via deviceId
+    if (msg.deviceId && !boundPatientId) {
+      try {
+        const patient = await Patient.findOne({ deviceId: msg.deviceId }).lean();
+        boundPatientId = patient ? patient.patient_id : msg.deviceId;
+        console.log(`[ecg-ws] bound to patient ${boundPatientId} (device ${msg.deviceId})`);
+      } catch (err) {
+        console.error("[ecg-ws] bind lookup failed:", err.message);
+        boundPatientId = msg.deviceId; // degrade gracefully — still usable if it happens to match
+      }
+      return;
+    }
+
+    // Waveform batch — relay live, no DB write (same policy as the POST /data path)
+    if (Array.isArray(msg.samples) && msg.samples.length && boundPatientId) {
+      io.to(boundPatientId).emit("ecg-waveform", {
+        patient_id: boundPatientId,
+        samples:    msg.samples.map(Number),
+        sampleRate: msg.sampleRate != null ? Number(msg.sampleRate) : 50,
+        time:       new Date(),
+      });
+    }
+  });
+
+  ws.on("close", () => console.log(`[ecg-ws] disconnected (patient ${boundPatientId || "unbound"})`));
+  ws.on("error", (err) => console.error("[ecg-ws] socket error:", err.message));
+});
 
 app.use(cors());
 app.use(express.json());
