@@ -309,6 +309,13 @@ void loop() {
     jsonData += "\"deviceId\":\"ESP32_01\"";
     jsonData += "}";
 
+    // TEMP DEBUG — confirm the waveform array is actually in the outgoing
+    // payload before it leaves the device. Remove once confirmed working.
+    Serial.print("[waveform] valid=");
+    Serial.print(ecgWaveformValid ? "YES" : "NO");
+    Serial.print(" | payload bytes=");
+    Serial.println(jsonData.length());
+
     int response = http.POST(jsonData);
     Serial.print("HTTP Response: ");
     Serial.println(response);

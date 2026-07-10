@@ -56,6 +56,25 @@ async function authFetch(url, options = {}) {
   return res;
 }
 
+// ── applyHospitalBranding() ───────────────────────────────────────────────────
+// Fetches the admin-configured hospital name and applies it wherever the
+// sidebar/header logo appears. Public endpoint — works on login/signup too,
+// before there's a token. Safe to call on any page: querySelectorAll just
+// returns nothing on pages without a logo element.
+async function applyHospitalBranding() {
+  try {
+    const res  = await fetch("/api/settings");
+    const data = await res.json();
+    const name = data.hospitalName || "healthMonitor";
+    document.querySelectorAll(".logo-text, .brand-logo-text").forEach(el => {
+      el.textContent = name;
+    });
+  } catch (e) {
+    // Non-fatal — logo just stays as the default "healthMonitor" markup
+    console.warn("[applyHospitalBranding]", e.message);
+  }
+}
+
 // ── fetchCurrentUser() ────────────────────────────────────────────────────────
 // Fetches /api/auth/me and populates the topbar user identity elements.
 // Call once after DOMContentLoaded on every protected page.

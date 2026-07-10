@@ -139,6 +139,7 @@ function onWardChange(value) { fetchPatients(value); }
 
 document.addEventListener("DOMContentLoaded", () => {
   fetchCurrentUser();
+  applyHospitalBranding();
   setWardWsStatus("connecting");
   fetchPatients();
 
@@ -151,6 +152,10 @@ document.addEventListener("DOMContentLoaded", () => {
   socket.on("connect",             () => setWardWsStatus("connected"));
   socket.on("disconnect",          () => setWardWsStatus("disconnected"));
   socket.on("patient-list-update", () => fetchPatients());
+  socket.on("settings-update", data => {
+    const name = data.hospitalName || "healthMonitor";
+    document.querySelectorAll(".logo-text, .brand-logo-text").forEach(el => { el.textContent = name; });
+  });
 
   setInterval(fetchPatients, 5000);
 });

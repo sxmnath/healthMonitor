@@ -47,6 +47,7 @@ mongoose.connect(process.env.MONGO_URI)
 
 const SensorData    = require("./models/SensorData");
 const Patient       = require("./models/Patient");
+const Settings      = require("./models/Settings");
 
 // Startup sanity check — this exact class of bug (routes updated, model
 // file not redeployed alongside them) has bitten this ABHA feature twice
@@ -318,6 +319,10 @@ app.post("/data", async (req, res) => {
       time:         doc.time,
     });
 
+    // TEMP DEBUG — confirm what the server actually receives for the
+    // waveform field before deciding whether/how to relay it.
+    console.log(`[ecg-waveform] from ${deviceId}: type=${typeof ecgWaveform}, isArray=${Array.isArray(ecgWaveform)}, length=${Array.isArray(ecgWaveform) ? ecgWaveform.length : "n/a"}`);
+
     // ── Live ECG waveform relay (Serial-Plotter-style trace) ────────────────
     // Raw AD8232 samples from the firmware's most recent 1-second sampling
     // window (~50Hz). Deliberately NOT written to SensorData — persisting
@@ -360,6 +365,50 @@ app.post("/data", async (req, res) => {
 
 // ─── GET /api/patients ────────────────────────────────────────────────────────
 // List all patients with their latest vitals
+// ═══════════════════════════════════════════════════════════════════════════
+// Hospital settings (branding)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── GET /api/settings ─────────────────────────────────────────────────────
+// Public — deliberately no auth. Every page, including login/signup before
+// the person has a token, renders the sidebar/header logo from this.
+app.get("/api/settings", async (req, res) => {
+  try {
+    const settings = await Settings.findOneAndUpdate(
+      {}, {}, { upsert: true, new: true, setDefaultsOnInsert: true }
+    ).lean();
+    res.json({ hospitalName: settings.hospitalName });
+  } catch (err) {
+    console.error("[GET /api/settings]", err);
+    // Fail open — branding is cosmetic, a DB hiccup here should never block
+    // a page from rendering. Fall back to the default name.
+    res.status(200).json({ hospitalName: "healthMonitor" });
+  }
+});
+
+// ─── PATCH /api/settings ───────────────────────────────────────────────────
+// Admin only. Broadcasts the change live so any staff already looking at
+// the ward overview or a patient dashboard see the new name without a
+// manual refresh.
+app.patch("/api/settings", protect, authorizeRoles("admin"), async (req, res) => {
+  try {
+    const cleaned = (req.body.hospitalName || "").trim();
+    if (!cleaned || cleaned.length > 80) {
+      return res.status(422).json({ error: "Hospital name must be 1–80 characters." });
+    }
+    const settings = await Settings.findOneAndUpdate(
+      {},
+      { $set: { hospitalName: cleaned } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    io.emit("settings-update", { hospitalName: settings.hospitalName });
+    res.json({ message: "Hospital name updated.", hospitalName: settings.hospitalName });
+  } catch (err) {
+    console.error("[PATCH /api/settings]", err);
+    res.status(500).json({ error: "Failed to update settings." });
+  }
+});
+
 app.get("/api/patients", protect, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {

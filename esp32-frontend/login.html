@@ -428,6 +428,13 @@
       window.location.replace("/");
     }
 
+    // ── Hospital branding ──────────────────────────────────────────────────────
+    fetch("/api/settings").then(r => r.json()).then(data => {
+      document.querySelectorAll(".logo-text, .brand-logo-text").forEach(el => {
+        el.textContent = data.hospitalName || "healthMonitor";
+      });
+    }).catch(() => {});
+
     // ── Password visibility toggle ────────────────────────────────────────────
     document.getElementById("pwToggle").addEventListener("click", () => {
       const input = document.getElementById("password");

@@ -61,6 +61,27 @@
       border: 1px solid var(--blue-mid); border-radius: 99px; padding: 2px 10px;
     }
 
+    .hospital-settings-card { margin-bottom: 22px; }
+    .hospital-settings-body { padding: 16px 20px 20px; }
+    .hs-label { display: block; font-size: 0.78rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+    .hs-hint  { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 12px; }
+    .hs-row   { display: flex; gap: 10px; }
+    .hs-row input {
+      flex: 1; padding: 10px 14px; font-size: 0.9rem;
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      background: var(--surface); color: var(--text-primary);
+    }
+    .hs-row input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-light); outline: none; }
+    .hs-save-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 10px 16px; font-size: 0.85rem; font-weight: 600;
+      font-family: var(--font); background: var(--blue); color: #fff;
+      border: none; border-radius: var(--radius-sm); cursor: pointer;
+      white-space: nowrap; transition: opacity 0.2s ease-out;
+    }
+    .hs-save-btn:hover    { opacity: 0.88; }
+    .hs-save-btn:disabled { opacity: 0.55; cursor: default; }
+
     /* Table */
     .user-table { width: 100%; border-collapse: collapse; }
     .user-table th {
@@ -180,7 +201,7 @@
         <span class="logo-text">healthMonitor</span>
         <i class="fa-solid fa-chevron-left collapse-arrow"></i>
       </button>
-      <span class="sidebar-tagline">Real-time patient monitoring</span>
+      <span class="sidebar-tagline">Powered by healthMonitor</span>
     </div>
     <nav class="sidebar-nav">
       <a href="/" class="nav-item" title="Ward Overview">
@@ -223,6 +244,25 @@
     </div>
 
     <div class="admin-outer">
+
+      <div class="user-table-card hospital-settings-card">
+        <div class="user-table-header">
+          <span class="user-table-title">
+            <i class="fa-solid fa-hospital"></i> Hospital Settings
+          </span>
+        </div>
+        <div class="hospital-settings-body">
+          <label for="f-hospitalName" class="hs-label">Hospital Name</label>
+          <p class="hs-hint">Shown in the sidebar logo on every page, in place of "healthMonitor".</p>
+          <div class="hs-row">
+            <input type="text" id="f-hospitalName" maxlength="80" placeholder="healthMonitor">
+            <button type="button" class="hs-save-btn" id="hospitalNameSaveBtn">
+              <i class="fa-solid fa-check"></i> Save
+            </button>
+          </div>
+        </div>
+      </div>
+
       <h1 class="admin-page-title">
         <i class="fa-solid fa-users-gear"></i> User Management
       </h1>
@@ -445,9 +485,42 @@
     } catch(_) {}
   }
 
+  // ── Hospital Settings ─────────────────────────────────────────────────────
+  async function loadHospitalSettings() {
+    try {
+      var res  = await fetch("/api/settings");
+      var data = await res.json();
+      var el = document.getElementById("f-hospitalName");
+      if (el) el.value = data.hospitalName || "";
+    } catch(_) {}
+  }
+
+  async function saveHospitalName() {
+    var input = document.getElementById("f-hospitalName");
+    var btn   = document.getElementById("hospitalNameSaveBtn");
+    var name  = (input?.value || "").trim();
+    if (!name) { toast("Hospital name can't be empty", true); return; }
+
+    try {
+      if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving…'; }
+      var res  = await authFetch("/api/settings", { method: "PATCH", body: JSON.stringify({ hospitalName: name }) });
+      var data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save");
+      document.querySelectorAll(".logo-text, .brand-logo-text").forEach(function(el) { el.textContent = data.hospitalName; });
+      toast("Hospital name updated.");
+    } catch(e) {
+      toast(e.message || "Failed to save hospital name", true);
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> Save'; }
+    }
+  }
+
   // ── Init ───────────────────────────────────────────────────────────────────
+  applyHospitalBranding();
+  loadHospitalSettings();
   loadTopbar();
   loadUsers();
+  document.getElementById("hospitalNameSaveBtn")?.addEventListener("click", saveHospitalName);
   document.getElementById("sidebarToggle")?.addEventListener("click", function() {
     document.getElementById("sidebar")?.classList.toggle("collapsed");
   });

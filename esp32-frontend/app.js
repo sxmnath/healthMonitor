@@ -1080,6 +1080,7 @@ function closeShareModal() {
 // ─── Boot ──────────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
   fetchCurrentUser();
+  applyHospitalBranding();
   applyPatientPageGates();
   initCharts();
   setWsStatus("connecting");
@@ -1112,8 +1113,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (doc.fusion?.indicators) updateAIInsights(doc.fusion.indicators);
   });
   socket.on("ecg-waveform", data => {
+    console.log("[ecg-waveform] received:", data.patient_id, "samples:", data.samples?.length);
     if (data.patient_id && data.patient_id !== PAGE_PATIENT_ID) return;
     renderEcgWaveform(data);
+  });
+  socket.on("settings-update", data => {
+    const name = data.hospitalName || "healthMonitor";
+    document.querySelectorAll(".logo-text, .brand-logo-text").forEach(el => { el.textContent = name; });
   });
 
   initEcgWaveformCanvas();

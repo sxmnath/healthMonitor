@@ -391,6 +391,13 @@
   <script>
     if (localStorage.getItem("hm_token")) window.location.replace("/");
 
+    // ── Hospital branding ──────────────────────────────────────────────────────
+    fetch("/api/settings").then(r => r.json()).then(function(data) {
+      document.querySelectorAll(".logo-text, .brand-logo-text").forEach(function(el) {
+        el.textContent = data.hospitalName || "healthMonitor";
+      });
+    }).catch(function() {});
+
     // ── State ──────────────────────────────────────────────────────────────────
     var _email = "", _name = "", _password = "", _resendCountdown = null;
 
