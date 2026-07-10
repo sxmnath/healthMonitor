@@ -6,42 +6,10 @@
 #include "spo2_algorithm.h"
 #include <Adafruit_TMP117.h>
 #include <WiFiManager.h>
-#include <WebSocketsClient.h>   // "WebSockets" by Markus Sattler — install via Library Manager
 
-/* --- SERVER URL --- */
-String serverURL = "https://health-monitor-server-2pbh.onrender.com/data";
-const char* wsHost = "health-monitor-server-2pbh.onrender.com";  // same host, no https:// prefix
-const int   wsPort = 443;
-const char* wsPath = "/ecg-stream";
-
-/* -------------------- LIVE ECG WEBSOCKET -------------------- */
-// Streams each ECG sample batch to the server the moment sampleECG()
-// finishes (every loop() iteration, ~1-2s cadence — see loop() timing
-// notes below), instead of waiting for the 5s HTTP POST cycle. This is
-// the same live ECG waveform the dashboard already renders — it just
-// arrives faster and more often now. POST /data's own ecgWaveform field
-// stays in place as a fallback for while this connection is (re)connecting.
-WebSocketsClient ecgWs;
-bool ecgWsBound = false;   // true once we've sent our deviceId to bind this connection
-
-void onEcgWsEvent(WStype_t type, uint8_t* payload, size_t length) {
-  switch (type) {
-    case WStype_CONNECTED:
-      Serial.println("[ecg-ws] connected — binding deviceId");
-      ecgWs.sendTXT("{\"deviceId\":\"ESP32_01\"}");
-      ecgWsBound = true;
-      break;
-    case WStype_DISCONNECTED:
-      Serial.println("[ecg-ws] disconnected — will auto-reconnect");
-      ecgWsBound = false;
-      break;
-    case WStype_ERROR:
-      Serial.println("[ecg-ws] error");
-      break;
-    default:
-      break;  // ignore TEXT/BIN/PING/PONG echoes — server doesn't send anything back
-  }
-}
+/* --- SERVER URLS --- */
+String serverURL  = "https://health-monitor-server-2pbh.onrender.com/data";
+String ecgLiveURL = "https://health-monitor-server-2pbh.onrender.com/ecg-live";
 
 /* -------------------- OBJECTS -------------------- */
 MAX30105    particleSensor;
@@ -62,9 +30,9 @@ int8_t  validHeartRate; // not used — ECG is primary HR source
 float temperatureC = 0;
 
 /* -------------------- ECG (AD8232) -------------------- */
-// Wiring: OUTPUT → GPIO34 (ADC1 only — ADC2 conflicts with WiFi)
-//         LO+    → GPIO32
-//         LO-    → GPIO33
+// Wiring: OUTPUT → GPIO36 (ADC1 only — ADC2 conflicts with WiFi)
+//         LO+    → GPIO2
+//         LO-    → GPIO4
 #define ECG_PIN     36   // GPIO36 (VP) — input-only, ADC1, confirmed working
 #define LO_PLUS      2   // confirmed working in hardware test
 #define LO_MINUS     4   // confirmed working in hardware test
@@ -82,9 +50,11 @@ unsigned long _lastPeakMs = 0;
 int ecgHeartRate = -1;
 
 // Raw waveform buffer — the last 1-second window of raw AD8232 samples,
-// captured alongside the existing R-peak detection loop below. Sent to the
-// server each POST cycle so the web dashboard can render a live scrolling
-// ECG trace (Serial-Plotter-style), separate from the derived BPM value.
+// captured alongside the existing R-peak detection loop below. Streamed to
+// the server (POST /ecg-live) the moment each window finishes, so the web
+// dashboard can render a near-live scrolling ECG trace, separate from the
+// derived BPM value. Also included in the regular 5s POST /data payload
+// as a fallback in case /ecg-live is temporarily unreachable.
 int  ecgWaveform[ECG_SAMPLES];
 bool ecgWaveformValid = false;  // false when leads are off — buffer is stale, don't send it
 
@@ -103,8 +73,54 @@ unsigned long lastSendTime = 0;
 const unsigned long sendInterval = 5000;
 
 /* ================================================================
+   buildEcgWaveformJson()
+   Serialises ecgWaveform[] to a JSON array string, e.g. "[512,514,...]".
+   Returns "[]" when the buffer isn't valid (leads off) — the server/
+   dashboard already treat an empty array as "no live signal".
+   ================================================================ */
+String buildEcgWaveformJson() {
+  if (!ecgWaveformValid) return "[]";
+  String out = "[";
+  for (int i = 0; i < ECG_SAMPLES; i++) {
+    out += String(ecgWaveform[i]);
+    if (i < ECG_SAMPLES - 1) out += ",";
+  }
+  out += "]";
+  return out;
+}
+
+/* ================================================================
+   sendEcgLive()
+   Fires a lightweight POST carrying only the waveform, right after each
+   ~1s sampling window finishes — not gated by the 5s vitals interval.
+   Uses the exact same HTTPClient mechanism as the main vitals POST
+   below, which is already proven reliable on this device. http.setReuse()
+   keeps the underlying TLS connection alive between calls to the same
+   host, so this doesn't pay a full TLS handshake every single time.
+   Silently does nothing if leads are off (buffer invalid) or WiFi is down.
+   ================================================================ */
+void sendEcgLive() {
+  if (!ecgWaveformValid) return;
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  HTTPClient http;
+  http.begin(ecgLiveURL);
+  http.addHeader("Content-Type", "application/json");
+  http.setReuse(true);
+
+  String payload = "{";
+  payload += "\"deviceId\":\"ESP32_01\",";
+  payload += "\"ecgWaveform\":" + buildEcgWaveformJson() + ",";
+  payload += "\"ecgSampleRate\":" + String(1000 / ECG_SAMPLE_MS);
+  payload += "}";
+
+  http.POST(payload);
+  http.end();
+}
+
+/* ================================================================
    sampleECG()
-   Collects 50 samples at 500Hz, detects R-peaks, updates ecgHeartRate.
+   Collects 50 samples at 50Hz, detects R-peaks, updates ecgHeartRate.
 
    R-peak detection:
      Rising edge crosses ECG_THRESHOLD → record millis() timestamp
@@ -141,15 +157,10 @@ void sampleECG() {
 
     delay(ECG_SAMPLE_MS);
   }
-  ecgWaveformValid = true;
+    ecgWaveformValid = true;
 
-  // ── Live stream this batch immediately ─────────────────────────────────
-  // This is the whole point of the WS connection over the old POST-only
-  // approach: don't wait up to 5s for the next vitals POST, push this
-  // window the moment it's ready.
-  if (ecgWsBound) {
-    ecgWs.sendTXT(buildEcgWaveformStreamMsg());
-  }
+  // Push this window live — the whole point of decoupling from the 5s POST.
+  sendEcgLive();
 
   if (_lastPeakMs > 0 && (millis() - _lastPeakMs) > 3000) {
     ecgHeartRate = -1;
@@ -199,36 +210,6 @@ void readMPU() {
   if      (accelZ < -0.5) posture = "supine";
   else if (accelX >  0.8) posture = "lateral";
   else                    posture = "upright";
-}
-
-/* ================================================================
-   buildEcgWaveformJson()
-   Serialises ecgWaveform[] to a JSON array string, e.g. "[512,514,...]".
-   Returns "[]" when the buffer isn't valid (leads off) — the server/
-   dashboard already treat an empty array as "no live signal".
-   ================================================================ */
-String buildEcgWaveformJson() {
-  if (!ecgWaveformValid) return "[]";
-  String out = "[";
-  for (int i = 0; i < ECG_SAMPLES; i++) {
-    out += String(ecgWaveform[i]);
-    if (i < ECG_SAMPLES - 1) out += ",";
-  }
-  out += "]";
-  return out;
-}
-
-/* ================================================================
-   buildEcgWaveformStreamMsg()
-   Builds the WS message sent over /ecg-stream: {"samples":[...],"sampleRate":50}
-   Only called when ecgWaveformValid is already true, so no leads-off
-   guard needed here (sampleECG() already handles that by not calling
-   this at all when leads are off).
-   ================================================================ */
-String buildEcgWaveformStreamMsg() {
-  String msg = "{\"samples\":" + buildEcgWaveformJson() + ",";
-  msg += "\"sampleRate\":" + String(1000 / ECG_SAMPLE_MS) + "}";
-  return msg;
 }
 
 /* -------------------- SETUP -------------------- */
@@ -284,22 +265,13 @@ void setup() {
   );
   Serial.println("MAX30102 initialized (SpO2 only — HR from ECG)");
   Serial.println("AD8232 ready — attach electrodes");
-
-  /* ---------- LIVE ECG WEBSOCKET ---------- */
-  ecgWs.beginSSL(wsHost, wsPort, wsPath);
-  ecgWs.onEvent(onEcgWsEvent);
-  ecgWs.setReconnectInterval(5000);
-  Serial.println("[ecg-ws] connecting...");
 }
 
 /* -------------------- LOOP -------------------- */
 void loop() {
 
-  /* ---------- 0. SERVICE ECG WEBSOCKET (non-blocking) ---------- */
-  ecgWs.loop();
-
   /* ---------- 1. SAMPLE ECG ---------- */
-  // 50 samples × 2ms = 100ms
+  // 50 samples × 20ms = ~1s. Also fires sendEcgLive() at the end.
   sampleECG();
 
   /* ---------- 2. READ MPU6050 ---------- */
@@ -345,7 +317,7 @@ void loop() {
   Serial.print(" | Posture: ");  Serial.print(posture);
   Serial.print(" | Motion: ");   Serial.println(motionDetected ? "YES" : "NO");
 
-  /* ---------- 8. SEND TO SERVER EVERY 5s ---------- */
+  /* ---------- 8. SEND VITALS TO SERVER EVERY 5s ---------- */
   if (millis() - lastSendTime >= sendInterval && WiFi.status() == WL_CONNECTED) {
     lastSendTime = millis();
 
@@ -371,13 +343,6 @@ void loop() {
     jsonData += "\"ecgSampleRate\":" + String(1000 / ECG_SAMPLE_MS) + ",";
     jsonData += "\"deviceId\":\"ESP32_01\"";
     jsonData += "}";
-
-    // TEMP DEBUG — confirm the waveform array is actually in the outgoing
-    // payload before it leaves the device. Remove once confirmed working.
-    Serial.print("[waveform] valid=");
-    Serial.print(ecgWaveformValid ? "YES" : "NO");
-    Serial.print(" | payload bytes=");
-    Serial.println(jsonData.length());
 
     int response = http.POST(jsonData);
     Serial.print("HTTP Response: ");
