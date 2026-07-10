@@ -161,7 +161,7 @@ body {
 .sidebar.collapsed { width: 60px; }
 .sidebar.collapsed .logo-text,
 .sidebar.collapsed .collapse-arrow,
-.sidebar.collapsed .nav-item span { opacity: 0; width: 0; overflow: hidden; pointer-events: none; }
+.sidebar.collapsed .nav-item span { opacity: 0; width: 0; flex: none; overflow: hidden; pointer-events: none; }
 .sidebar.collapsed .sidebar-collapse-btn { justify-content: center; padding: 16px 0; gap: 0; }
 .sidebar.collapsed .logo-icon { width: auto; margin: 0; }
 .sidebar.collapsed .collapse-arrow { transform: rotate(180deg); opacity: 0; }
@@ -1268,6 +1268,7 @@ html {
   font-size: 0.78rem;
   flex-shrink: 0;
 }
+.confirm-list li.confirm-list-action i { color: var(--blue); }
 
 .confirm-warn-text {
   font-size: 0.82rem;

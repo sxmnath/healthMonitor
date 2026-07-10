@@ -440,6 +440,33 @@
     </div>
   </div>
 
+  <!-- ── Discharge Confirm Modal ──────────────────────────── -->
+  <div class="modal-overlay" id="dischargeConfirmModal">
+    <div class="modal-box modal-box-sm">
+      <div class="modal-header modal-header-danger">
+        <h2><i class="fa-solid fa-triangle-exclamation"></i> Discharge Patient</h2>
+      </div>
+      <div class="modal-body">
+        <p class="confirm-body-text" id="dischargeConfirmText"></p>
+        <ul class="confirm-list" id="dischargeConfirmList">
+          <li class="confirm-list-action"><i class="fa-solid fa-file-pdf"></i> Generate and download the discharge summary PDF</li>
+          <li class="confirm-list-action discharge-confirm-abha" id="dischargeConfirmAbha" style="display:none">
+            <i class="fa-solid fa-share-from-square"></i> Push vitals to the patient's linked ABHA record
+          </li>
+          <li><i class="fa-solid fa-xmark"></i> Permanently delete all vitals history</li>
+          <li><i class="fa-solid fa-xmark"></i> Permanently clear the patient profile (name, age, room, etc.)</li>
+        </ul>
+        <p class="confirm-warn-text">This action cannot be undone.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" id="dischargeCancelBtn">Cancel</button>
+        <button class="btn-danger" id="dischargeConfirmBtn">
+          <i class="fa-solid fa-file-export"></i> Discharge &amp; Export
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Result Toast ──────────────────────────────────────── -->
   <div class="toast" id="resultToast">
     <i class="fa-solid fa-circle-check toast-icon"></i>

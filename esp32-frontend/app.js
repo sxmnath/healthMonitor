@@ -773,23 +773,36 @@ async function wipePatientDataAndProfile(pid) {
 // One button, one route: generates + downloads the PDF discharge summary,
 // fires the ABHA push in the background if linked, then wipes this
 // patient's vitals + profile so the bed is ready for the next admission.
-async function dischargePatient() {
+function dischargePatient() {
   const pid = PAGE_PATIENT_ID;
   if (!pid) { showToast("No patient loaded.", true); return; }
 
   const p = patientProfile || {};
-  const abhaLine = p.abhaLinked
-    ? "and push their vitals to their linked ABHA record, "
-    : "(no ABHA link on file — only the PDF will be created), ";
-  const confirmMsg =
-    `Generate the discharge summary for ${p.name || pid} ${abhaLine}` +
-    `then permanently delete all of their vitals history and profile data ` +
-    `to free this bed for the next patient?\n\nThis cannot be undone.`;
-  if (!confirm(confirmMsg)) return;
+
+  const textEl = document.getElementById("dischargeConfirmText");
+  if (textEl) textEl.textContent = `You are about to discharge "${p.name || pid}". This will:`;
+
+  const abhaLi = document.getElementById("dischargeConfirmAbha");
+  if (abhaLi) abhaLi.style.display = p.abhaLinked ? "flex" : "none";
+
+  document.getElementById("dischargeConfirmModal")?.classList.add("open");
+}
+
+function closeDischargeModal() {
+  document.getElementById("dischargeConfirmModal")?.classList.remove("open");
+}
+
+async function executeDischarge() {
+  const pid = PAGE_PATIENT_ID;
+  if (!pid) return;
+
+  closeDischargeModal();
 
   const btn = document.getElementById("dischargeBtn");
+  const confirmBtn = document.getElementById("dischargeConfirmBtn");
   try {
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating…'; }
+    if (btn)         { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating…'; }
+    if (confirmBtn)  { confirmBtn.disabled = true; }
 
     const res = await authFetch(`/api/patients/${encodeURIComponent(pid)}/discharge`, { method: "POST" });
     if (!res.ok) {
@@ -813,10 +826,11 @@ async function dischargePatient() {
       `${deletedCount} record${deletedCount === 1 ? "" : "s"} cleared.`
     );
   } catch (e) {
-    console.error("[dischargePatient]", e);
+    console.error("[executeDischarge]", e);
     showToast("Discharge export failed: " + e.message, true);
   } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-file-export"></i> Discharge &amp; Export'; }
+    if (btn)        { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-file-export"></i> Discharge &amp; Export'; }
+    if (confirmBtn) { confirmBtn.disabled = false; }
   }
 }
 
@@ -1164,4 +1178,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Discharge & Export (Stage 3 trigger + data wipe)
   document.getElementById("dischargeBtn")?.addEventListener("click", dischargePatient);
+  document.getElementById("dischargeConfirmBtn")?.addEventListener("click", executeDischarge);
+  document.getElementById("dischargeCancelBtn")?.addEventListener("click", closeDischargeModal);
+  document.getElementById("dischargeConfirmModal")?.addEventListener("click", e => {
+    if (e.target === e.currentTarget) closeDischargeModal();
+  });
 });
