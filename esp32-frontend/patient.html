@@ -317,9 +317,6 @@
               <button class="revoke-btn" id="revokeAccessBtn">
                 <i class="fa-solid fa-link-slash"></i> Revoke Access
               </button>
-              <button class="reset-btn" id="resetDataBtn">
-                <i class="fa-solid fa-rotate-left"></i> Reset All Data
-              </button>
               <button class="discharge-btn" id="dischargeBtn">
                 <i class="fa-solid fa-file-export"></i> Discharge &amp; Export
               </button>
@@ -439,30 +436,6 @@
       <div class="modal-footer">
         <button class="btn-cancel" id="modalCancel">Cancel</button>
         <button class="btn-save" id="modalSave"><i class="fa-solid fa-check"></i> Save Changes</button>
-      </div>
-    </div>
-  </div>
-
-
-  <!-- ── Reset Confirm Modal ──────────────────────────────── -->
-  <div class="modal-overlay" id="resetConfirmModal">
-    <div class="modal-box modal-box-sm">
-      <div class="modal-header modal-header-danger">
-        <h2><i class="fa-solid fa-triangle-exclamation"></i> Reset Patient Data</h2>
-      </div>
-      <div class="modal-body">
-        <p class="confirm-body-text" id="confirmBodyText"></p>
-        <ul class="confirm-list">
-          <li><i class="fa-solid fa-xmark"></i> All historical vitals &amp; sensor readings</li>
-          <li><i class="fa-solid fa-xmark"></i> Patient profile (name, age, room, etc.)</li>
-        </ul>
-        <p class="confirm-warn-text">This action cannot be undone.</p>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-cancel" id="confirmCancelBtn">Cancel</button>
-        <button class="btn-danger" id="confirmResetBtn">
-          <i class="fa-solid fa-trash"></i> Reset Everything
-        </button>
       </div>
     </div>
   </div>

@@ -162,10 +162,9 @@ function applyPatientPageGates() {
   gateElement("revokeAccessBtn", Role.ADMIN, Role.DOCTOR, Role.NURSE);
   gateElement("shareRevokeBtn",  Role.ADMIN, Role.DOCTOR, Role.NURSE);
 
-  // ── Reset All Data button — doctor/admin only ─────────────────────────────
-  gateElement("resetDataBtn",    Role.ADMIN, Role.DOCTOR);
-
   // ── Discharge & Export — doctor/admin only (matches backend route) ────────
+  // Also covers the data-wipe step that now runs as part of discharge —
+  // formerly a separate "Reset All Data" button with the same role gate.
   gateElement("dischargeBtn",    Role.ADMIN, Role.DOCTOR);
 
   // ── ABHA linking — admin/doctor/nurse, same as admission intake tasks ─────

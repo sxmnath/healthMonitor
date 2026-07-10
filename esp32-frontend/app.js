@@ -727,67 +727,96 @@ function showToast(msg, isError = false) {
   setTimeout(() => toast.classList.remove("show"), 3500);
 }
 
-// ─── Reset Patient Data — in-page modal confirm ────────────────────────────────
-function resetPatientData() {
-  const pid  = currentPatientId || PAGE_PATIENT_ID;
-  if (!pid) return;
-  const name = patientProfile.name || pid;
+// ─── Post-discharge data wipe ──────────────────────────────────────────────────
+// Deletes this patient's vitals history AND profile fields (keeps the
+// patient_id/device registration so the bed can be reused for the next
+// patient). Previously a separate "Reset All Data" button+modal — folded
+// into Discharge & Export since running one without the other rarely made
+// sense: you don't discharge someone and leave their data live, and you
+// don't wipe someone's data without it being a discharge.
+async function wipePatientDataAndProfile(pid) {
+  // 1. Delete all sensor/vitals data
+  const dataRes = await authFetch(`/api/patients/${encodeURIComponent(pid)}/data`, { method: "DELETE" });
+  const dataR   = await dataRes.json();
 
-  // Populate and open the confirm modal
-  const bodyEl = document.getElementById("confirmBodyText");
-  if (bodyEl) bodyEl.textContent = `You are about to fully reset "${name}".`;
+  // 2. Clear all profile fields (keeps device registration)
+  const profRes = await authFetch(`/api/patients/${encodeURIComponent(pid)}/profile`, { method: "DELETE" });
+  if (!profRes.ok) throw new Error("Profile reset failed");
+  const resetProfile = await profRes.json();
 
-  const modal = document.getElementById("resetConfirmModal");
-  modal?.classList.add("open");
+  // 3. Clear charts
+  [hrChart, spo2Chart, tempChart].forEach(c => {
+    if (!c) return;
+    c.data.labels = []; c.data.datasets[0].data = []; syncBands(c); c.update();
+  });
+
+  // 4. Clear signal processing buffers and peaks
+  hrBuf.length = 0; spo2Buf.length = 0; tempBuf.length = 0;
+  peakHr = null; minSpo2 = null; peakTempF = null;
+
+  // Reset activity card to its placeholder state
+  const activityCard = document.getElementById("card-activity");
+  if (activityCard) activityCard.className = "vital-card";
+  const activityValEl = document.getElementById("activityScore");
+  if (activityValEl) activityValEl.innerText = "--";
+
+  // 5. Clear alerts and insights panel
+  activeAlerts.clear(); aiInsights = []; renderInsightsPanel();
+
+  // 6. Blank the profile UI
+  renderProfile(resetProfile);
+
+  return dataR.deleted || 0;
 }
 
-async function executeReset() {
-  const pid = currentPatientId || PAGE_PATIENT_ID;
-  if (!pid) return;
+// ─── Discharge & Export (Stage 3 trigger + data wipe) ───────────────────────────
+// One button, one route: generates + downloads the PDF discharge summary,
+// fires the ABHA push in the background if linked, then wipes this
+// patient's vitals + profile so the bed is ready for the next admission.
+async function dischargePatient() {
+  const pid = PAGE_PATIENT_ID;
+  if (!pid) { showToast("No patient loaded.", true); return; }
 
-  const btn = document.getElementById("confirmResetBtn");
-  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Resetting…'; }
+  const p = patientProfile || {};
+  const abhaLine = p.abhaLinked
+    ? "and push their vitals to their linked ABHA record, "
+    : "(no ABHA link on file — only the PDF will be created), ";
+  const confirmMsg =
+    `Generate the discharge summary for ${p.name || pid} ${abhaLine}` +
+    `then permanently delete all of their vitals history and profile data ` +
+    `to free this bed for the next patient?\n\nThis cannot be undone.`;
+  if (!confirm(confirmMsg)) return;
 
-  document.getElementById("resetConfirmModal")?.classList.remove("open");
-
+  const btn = document.getElementById("dischargeBtn");
   try {
-    // 1. Delete all sensor/vitals data
-    const dataRes = await authFetch(`/api/patients/${encodeURIComponent(pid)}/data`, { method: "DELETE" });
-    const dataR   = await dataRes.json();
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating…'; }
 
-    // 2. Clear all profile fields (keeps device registration)
-    const profRes = await authFetch(`/api/patients/${encodeURIComponent(pid)}/profile`, { method: "DELETE" });
-    if (!profRes.ok) throw new Error("Profile reset failed");
-    const resetProfile = await profRes.json();
+    const res = await authFetch(`/api/patients/${encodeURIComponent(pid)}/discharge`, { method: "POST" });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error || "Discharge export failed");
+    }
 
-    // 3. Clear charts
-    [hrChart, spo2Chart, tempChart].forEach(c => {
-      if (!c) return;
-      c.data.labels = []; c.data.datasets[0].data = []; syncBands(c); c.update();
-    });
+    const abhaPushStatus = res.headers.get("X-Abha-Push");
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = `discharge-${pid}.pdf`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
 
-    // 4. Clear signal processing buffers and peaks
-    hrBuf.length = 0; spo2Buf.length = 0; tempBuf.length = 0;
-    peakHr = null; minSpo2 = null; peakTempF = null;
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Clearing patient data…';
+    const deletedCount = await wipePatientDataAndProfile(pid);
 
-    // Reset activity card to its placeholder state
-    const activityCard = document.getElementById("card-activity");
-    if (activityCard) activityCard.className = "vital-card";
-    const activityValEl = document.getElementById("activityScore");
-    if (activityValEl) activityValEl.innerText = "--";
-
-    // 5. Clear alerts and insights panel
-    activeAlerts.clear(); aiInsights = []; renderInsightsPanel();
-
-    // 6. Blank the profile UI
-    renderProfile(resetProfile);
-
-    showToast(`Reset complete — ${dataR.deleted || 0} records deleted.`);
+    showToast(
+      `Discharge summary downloaded${abhaPushStatus === "queued" ? " — ABHA push in progress" : ""}. ` +
+      `${deletedCount} record${deletedCount === 1 ? "" : "s"} cleared.`
+    );
   } catch (e) {
-    console.error("[executeReset]", e);
-    showToast("Reset failed. Check server connection.", true);
+    console.error("[dischargePatient]", e);
+    showToast("Discharge export failed: " + e.message, true);
   } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-trash"></i> Reset Everything'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-file-export"></i> Discharge &amp; Export'; }
   }
 }
 
@@ -1006,51 +1035,6 @@ function changeAbha() {
   cancelAbhaLink();
 }
 
-// ─── Discharge & Export (Stage 3 trigger) ───────────────────────────────────────
-// One button, one route: generates + downloads the PDF discharge summary, and
-// if the patient has a verified ABHA link, the backend also fires the FHIR
-// Bundle push to the ABDM Health Repository in the background.
-async function dischargePatient() {
-  const pid = PAGE_PATIENT_ID;
-  if (!pid) { showToast("No patient loaded.", true); return; }
-
-  const p = patientProfile || {};
-  const confirmMsg = p.abhaLinked
-    ? `Generate the discharge summary for ${p.name || pid} and push their vitals to their linked ABHA record?`
-    : `Generate the discharge summary for ${p.name || pid}? (No ABHA link on file — only the PDF will be created.)`;
-  if (!confirm(confirmMsg)) return;
-
-  const btn = document.getElementById("dischargeBtn");
-  try {
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating…'; }
-
-    const res = await authFetch(`/api/patients/${encodeURIComponent(pid)}/discharge`, { method: "POST" });
-    if (!res.ok) {
-      const d = await res.json().catch(() => ({}));
-      throw new Error(d.error || "Discharge export failed");
-    }
-
-    const abhaPushStatus = res.headers.get("X-Abha-Push");
-    const blob = await res.blob();
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href = url; a.download = `discharge-${pid}.pdf`;
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
-
-    showToast(
-      abhaPushStatus === "queued"
-        ? "Discharge summary downloaded — ABHA push in progress."
-        : "Discharge summary downloaded."
-    );
-  } catch (e) {
-    console.error("[dischargePatient]", e);
-    showToast("Discharge export failed: " + e.message, true);
-  } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-file-export"></i> Discharge &amp; Export'; }
-  }
-}
-
 function copyShareUrl() {
   if (!_shareUrl) return;
   var icon = document.getElementById("shareCopyIcon");
@@ -1164,8 +1148,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.target === e.currentTarget) closeEditModal();
   });
 
-  // Reset button — opens confirm modal
-  document.getElementById("resetDataBtn")?.addEventListener("click", resetPatientData);
   document.getElementById("shareFamilyBtn")?.addEventListener("click", shareFamily);
   document.getElementById("revokeAccessBtn")?.addEventListener("click", revokeAccess);
   document.getElementById("shareModalClose")?.addEventListener("click", closeShareModal);
@@ -1180,16 +1162,6 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("abhaCancelBtn")?.addEventListener("click", cancelAbhaLink);
   document.getElementById("abhaChangeBtn")?.addEventListener("click", changeAbha);
 
-  // Discharge & Export (Stage 3 trigger)
+  // Discharge & Export (Stage 3 trigger + data wipe)
   document.getElementById("dischargeBtn")?.addEventListener("click", dischargePatient);
-
-  // Confirm modal buttons
-  document.getElementById("confirmResetBtn")?.addEventListener("click", executeReset);
-  document.getElementById("confirmCancelBtn")?.addEventListener("click", () => {
-    document.getElementById("resetConfirmModal")?.classList.remove("open");
-  });
-  document.getElementById("resetConfirmModal")?.addEventListener("click", e => {
-    if (e.target === e.currentTarget)
-      document.getElementById("resetConfirmModal")?.classList.remove("open");
-  });
 });
